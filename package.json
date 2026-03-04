@@ -59,6 +59,7 @@
     "multer": "^2.0.2",
     "natural": "^8.1.0",
     "nodemailer": "^7.0.12",
+    "openai": "^6.25.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.18.3",
