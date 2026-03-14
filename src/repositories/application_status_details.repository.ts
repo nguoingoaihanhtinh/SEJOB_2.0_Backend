@@ -1,7 +1,6 @@
 import { supabase } from "@/config/supabase";
 import { ApplicationStatusDetailsInsert, ApplicationStatusDetailsUpdate } from "@/types/common";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { de } from "zod/v4/locales";
 
 export class ApplicationStatusDetailsRepository {
     private readonly db: SupabaseClient;

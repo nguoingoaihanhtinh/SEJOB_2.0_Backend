@@ -66,11 +66,11 @@ export async function uploadMultiMedia(req: Request, res: Response) {
 export async function deleteMedia(req: Request, res: Response) {
   const { fileName } = req.params;
 
-  if (!fileName) {
+  if (!fileName && _.isString(fileName)) {
     throw new BadRequestError({ message: "fileName is required!" });
   }
 
-  const { error } = await supabase.storage.from(env.SUPABASE_BUCKET_NAME).remove([fileName]);
+  const { error } = await supabase.storage.from(env.SUPABASE_BUCKET_NAME).remove([fileName as string]);
 
   if (error) {
     throw new InternalServerError({ message: "Delete failed!" });

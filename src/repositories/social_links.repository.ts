@@ -10,21 +10,27 @@ export class SocialLinkRepository {
     if (input.platform) query = query.eq("platform", input.platform);
 
     const { data, error } = await query;
-    console.log("DEBUG findAll data:", data);
+
     if (error) throw error;
     return { data: data as T[] };
   }
 
-  async findOne(student_id: number, platform: string) {
-    const { data, error } = await supabase
-      .from("social_links")
-      .select("*")
-      .eq("student_id", student_id)
-      .eq("platform", platform)
-      .maybeSingle();
+  async findOne(query: SocialLinkQueryParams) {
+    let supabaseQuery = supabase.from("social_links").select("*");
+
+    if (query.student_id) {
+      supabaseQuery = supabaseQuery.eq("student_id", query.student_id);
+    }
+
+    if (query.platform) {
+      supabaseQuery = supabaseQuery.eq("platform", query.platform);
+    }
+
+    const { data, error } = await supabaseQuery.limit(1).maybeSingle();
 
     if (error) throw error;
-    return data;
+
+    return { data };
   }
 
   async create(input: SocialLinkInsert) {
@@ -34,10 +40,12 @@ export class SocialLinkRepository {
     return data;
   }
 
-  async update(student_id: number, platform: string, updateData: SocialLinkUpdate) {
+  async update(input: { student_id: number; platform: string; update_data: SocialLinkUpdate }) {
+    const { student_id, platform, update_data } = input;
+
     const { data, error } = await supabase
       .from("social_links")
-      .update({ ...updateData, updated_at: new Date().toISOString() })
+      .update(update_data)
       .eq("student_id", student_id)
       .eq("platform", platform)
       .select()
@@ -53,13 +61,7 @@ export class SocialLinkRepository {
   }
 
   async delete(student_id: number, platform: string) {
-    const { data, error } = await supabase
-      .from("social_links")
-      .delete()
-      .eq("student_id", student_id)
-      .eq("platform", platform)
-      .select()
-      .maybeSingle();
+    const { data, error } = await supabase.from("social_links").delete().eq("student_id", student_id).eq("platform", platform).select().maybeSingle();
 
     if (error) {
       if (error.message.includes("no rows deleted")) {

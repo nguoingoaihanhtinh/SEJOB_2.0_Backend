@@ -1,6 +1,5 @@
 import { supabase } from "@/config/supabase";
 import { SupabaseClient } from "@supabase/supabase-js";
-import _ from "lodash";
 
 export interface JobNotificationSent {
   id: number;

@@ -4,12 +4,13 @@ import { Request, Response } from "express";
 import validate from "@/utils/validate";
 
 import { BadRequestError } from "@/utils/errors";
-import social_linksService from "@/services/social_links.service";
+import socialLinkService from "@/services/social_links.service";
 import { createSocialLinkSchema, updateSocialLinkSchema } from "@/dtos/student/SocialLinks.dto";
 import studentRepository from "@/repositories/student.repository";
+import _ from "lodash";
 
 export async function createSocialLink(req: Request, res: Response) {
-  const userId = req.user!.userId;
+  const userId = _.toNumber(req.params.userId);
   const linkData = validate.schema_validate(createSocialLinkSchema, req.body);
 
   const student = await studentRepository.findOne({ user_id: userId });
@@ -17,19 +18,18 @@ export async function createSocialLink(req: Request, res: Response) {
     throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  const created = await social_linksService.create({
+  const link_created = await socialLinkService.create({
     student_id: student.id,
-    userId,
     linkData,
   });
 
-  res.status(201).json({ success: true, created });
+  res.status(201).json({ success: true, data: link_created });
 }
 
 export async function updateSocialLink(req: Request, res: Response) {
-  const userId = req.user!.userId;
-  const platform = req.params.platform;
-  const linkData = validate.schema_validate(updateSocialLinkSchema, req.body);
+  const userId = _.toNumber(req.params.userId);
+  const platform = req.body.platform;
+  const update_data = validate.schema_validate(updateSocialLinkSchema, req.body);
 
   if (!platform) {
     throw new BadRequestError({ message: "platform is required" });
@@ -40,20 +40,18 @@ export async function updateSocialLink(req: Request, res: Response) {
     throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  const updated = await social_linksService.update({
+  const updated_link = await socialLinkService.update({
     student_id: student.id,
-    userId,
     platform,
-    linkData,
+    update_data,
   });
 
-  res.status(200).json({ success: true, updated });
+  res.status(200).json({ success: true, data: updated_link });
 }
 
 export async function deleteSocialLink(req: Request, res: Response) {
-  console.log("✅ listSocialLinks START");
-  const userId = req.user!.userId;
-  const platform = req.params.platform;
+  const userId = _.toNumber(req.params!.userId);
+  const platform = req.query.platform;
 
   if (!platform) {
     throw new BadRequestError({ message: "platform is required" });
@@ -64,10 +62,9 @@ export async function deleteSocialLink(req: Request, res: Response) {
     throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  await social_linksService.delete({
+  await socialLinkService.delete({
     student_id: student.id,
-    userId,
-    platform,
+    platform: platform as string,
   });
 
   res.status(200).json({ success: true, message: "Social link deleted" });
@@ -81,11 +78,22 @@ export async function listSocialLinks(req: Request, res: Response) {
     throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  const student_id = Number(student.id);
-  if (isNaN(student_id) || student_id <= 0) {
-    throw new BadRequestError({ message: "Invalid student ID" });
+  const links = await socialLinkService.list({ student_id: student.id, userId });
+  res.status(200).json({ success: true, links });
+}
+
+export async function getSocialLink(req: Request, res: Response) {
+  const userId = req.params.userId;
+
+  const student = await studentRepository.findOne({ user_id: _.toNumber(userId) });
+  if (!student || student.id == null) {
+    throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  const links = await social_linksService.list({ student_id, userId });
-  res.status(200).json({ success: true, links });
+  const data = await socialLinkService.findOne({
+    student_id: student.id,
+    platform: req.query.platform as string,
+  });
+
+  res.status(200).json({ success: true, data });
 }

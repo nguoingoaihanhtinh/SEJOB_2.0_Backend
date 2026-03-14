@@ -1,14 +1,14 @@
 // services/socialLink.service.ts
 
 import { BadRequestError, NotFoundError } from "@/utils/errors";
-import studentRepo from "@/repositories/student.repository"; // to verify student ownership
+import studentRepo from "@/repositories/student.repository";
 import { CreateSocialLinkDto, UpdateSocialLinkDto } from "@/dtos/student/SocialLinks.dto";
-import social_linksRepository from "@/repositories/social_links.repository";
+import socialLinksRepository from "@/repositories/social_links.repository";
+import { SocialLinkQueryParams } from "@/types/common";
 
 export class SocialLinkService {
   async assertStudentOwnership(student_id: number, userId: number) {
     const student = await studentRepo.findOne({ student_id });
-    console.log("DEBUG assertStudentOwnership student:", student);
     if (!student) {
       throw new NotFoundError({ message: "Student profile not found" });
     }
@@ -17,51 +17,50 @@ export class SocialLinkService {
     }
   }
 
-  async create(input: { student_id: number; userId: number; linkData: CreateSocialLinkDto }) {
-    const { student_id, userId, linkData } = input;
+  async create(input: { student_id: number; linkData: CreateSocialLinkDto }) {
+    const { student_id, linkData } = input;
 
-    await this.assertStudentOwnership(student_id, userId);
+    const { data: link } = await socialLinksRepository.findOne({ student_id, platform: linkData.platform });
 
-    const existing = await social_linksRepository.findOne(student_id, linkData.platform);
-    if (existing) {
+    if (link) {
       throw new BadRequestError({ message: `Link for ${linkData.platform} already exists` });
     }
 
-    return await social_linksRepository.create({
+    return await socialLinksRepository.create({
       student_id,
       platform: linkData.platform,
       url: linkData.url,
     });
   }
 
-  async update(input: { student_id: number; userId: number; platform: string; linkData: UpdateSocialLinkDto }) {
-    const { student_id, userId, platform, linkData } = input;
+  async update(input: { student_id: number; platform: string; update_data: UpdateSocialLinkDto }) {
+    const { student_id, platform, update_data } = input;
 
-    await this.assertStudentOwnership(student_id, userId);
-
-    const existing = await social_linksRepository.findOne(student_id, platform);
-    if (!existing) {
+    const { data: link } = await socialLinksRepository.findOne({ student_id, platform });
+    if (!link) {
       throw new NotFoundError({ message: `Social link for ${platform} not found` });
     }
 
-    return await social_linksRepository.update(student_id, platform, linkData);
+    return await socialLinksRepository.update({ student_id, platform, update_data });
   }
 
-  async delete(input: { student_id: number; userId: number; platform: string }) {
-    const { student_id, userId, platform } = input;
+  async delete(input: { student_id: number; platform: string }) {
+    const { student_id, platform } = input;
 
-    await this.assertStudentOwnership(student_id, userId);
-
-    await social_linksRepository.delete(student_id, platform);
+    await socialLinksRepository.delete(student_id, platform);
   }
 
   async list(input: { student_id: number; userId: number }) {
     const { student_id, userId } = input;
-    console.log("DEBUG list input:", input);
-    await this.assertStudentOwnership(student_id, userId);
 
-    const { data: links } = await social_linksRepository.findAll({ student_id });
+    const { data: links } = await socialLinksRepository.findAll({ student_id });
     return links;
+  }
+
+  async findOne(query: SocialLinkQueryParams) {
+    const { data: link } = await socialLinksRepository.findOne(query);
+
+    return link;
   }
 }
 
