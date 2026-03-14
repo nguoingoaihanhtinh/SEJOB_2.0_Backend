@@ -18,12 +18,12 @@ export async function createSocialLink(req: Request, res: Response) {
     throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  const link_created = await socialLinkService.create({
+  const data = await socialLinkService.create({
     student_id: student.id,
     linkData,
   });
 
-  res.status(201).json({ success: true, data: link_created });
+  res.status(201).json({ success: true, data });
 }
 
 export async function updateSocialLink(req: Request, res: Response) {
@@ -40,13 +40,13 @@ export async function updateSocialLink(req: Request, res: Response) {
     throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  const updated_link = await socialLinkService.update({
+  const data = await socialLinkService.update({
     student_id: student.id,
     platform,
     update_data,
   });
 
-  res.status(200).json({ success: true, data: updated_link });
+  res.status(200).json({ success: true, data });
 }
 
 export async function deleteSocialLink(req: Request, res: Response) {
@@ -78,8 +78,8 @@ export async function listSocialLinks(req: Request, res: Response) {
     throw new BadRequestError({ message: "Student profile not found" });
   }
 
-  const links = await socialLinkService.list({ student_id: student.id, userId });
-  res.status(200).json({ success: true, links });
+  const data = await socialLinkService.list({ student_id: student.id, userId });
+  res.status(200).json({ success: true, data });
 }
 
 export async function getSocialLink(req: Request, res: Response) {

@@ -15,7 +15,7 @@ router.get("/:id", getUserById);
 router.post("/", authenticate, authorizeRoles("Admin"), createUser);
 
 // PUT /api/users/:id - Update user
-router.put("/:id", authenticate, authorizeRoles("Admin"), updateUser);
+router.put("/:id", authenticate, authorizeRoles("Admin", "Student"), updateUser);
 
 // DELETE /api/users/:id - Delete user
 router.delete("/:id", authenticate, authorizeRoles("Admin"), deleteUser);
