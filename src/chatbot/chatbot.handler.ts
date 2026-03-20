@@ -23,7 +23,6 @@ const suggestionsSchema = z.object({
   userRole: z.enum(["Guest", "Student", "Employer", "Admin"]).optional(),
 });
 
-/** POST /api/chatbot/chat */
 export async function chat(req: Request, res: Response) {
   const parsed = chatSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -41,7 +40,6 @@ export async function chat(req: Request, res: Response) {
   return res.json({ success: true, data: response });
 }
 
-/** GET /api/chatbot/suggestions?input=...&userRole=... */
 export function suggestions(req: Request, res: Response) {
   const parsed = suggestionsSchema.safeParse(req.query);
   if (!parsed.success) {
@@ -58,7 +56,6 @@ export function suggestions(req: Request, res: Response) {
   return res.json({ success: true, data });
 }
 
-/** GET /api/chatbot/faqs?role=... */
 export function faqs(req: Request, res: Response) {
   const role =
     (req.user?.role as UserRole | undefined) ??
@@ -67,7 +64,6 @@ export function faqs(req: Request, res: Response) {
   return res.json({ success: true, data });
 }
 
-/** GET /api/chatbot/faqs/:id */
 export function faqById(req: Request, res: Response) {
   const rawId = req.params["id"];
   const id = Array.isArray(rawId) ? (rawId[0] ?? "") : (rawId ?? "");
