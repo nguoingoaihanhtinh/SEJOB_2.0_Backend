@@ -8,6 +8,7 @@ import {
   companyUpdateApplication,
   companyGetApplication,
   adminListApplications,
+  getApplicationByJobId,
 } from "@/handlers/applications.handler";
 import { authenticate } from "@/middlewares/auth.middleware";
 import { authorizeRoles } from "@/middlewares/authorizeRoles";
@@ -22,6 +23,7 @@ router.put("/company/:id", authenticate, authorizeRoles("Employer"), companyUpda
 
 router.get("/", authenticate, authorizeRoles("Student"), listApplications);
 router.get("/:id", authenticate, authorizeRoles("Student"), getApplication);
+router.get("/job/:jobId", authenticate, authorizeRoles("Student"), getApplicationByJobId);
 router.post("/", authenticate, authorizeRoles("Student"), createApplication);
 router.put("/:id", authenticate, authorizeRoles("Student"), updateApplication);
 

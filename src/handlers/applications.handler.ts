@@ -12,7 +12,7 @@ import jobRepository from "@/repositories/job.repository";
 export async function listApplications(req: Request, res: Response) {
   if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
 
-  const { data, pagination} = await ApplicationService.findAll({ 
+  const { data, pagination } = await ApplicationService.findAll({
     user_id: req.user.userId,
     job_id: _.toNumber(req.query.job_id) || null,
     statuses: convert.split(req.query.statuses as string, ',', String) as ApplicationStatus[],
@@ -37,6 +37,20 @@ export async function getApplication(req: Request, res: Response) {
   res.status(200).json({ success: true, data: application });
 }
 
+export async function getApplicationByJobId(req: Request, res: Response) {
+  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+
+  const job_id = Number(req.params.jobId);
+
+  if (_.isNaN(job_id)) {
+    throw new BadRequestError({ message: "Invalid job_id!" });
+  }
+
+  const application = await ApplicationService.findOne({ job_id, user_id: req.user.userId });
+
+  res.status(200).json({ success: true, data: application });
+}
+
 export async function updateApplication(req: Request, res: Response) {
   if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
 
@@ -52,7 +66,7 @@ export async function updateApplication(req: Request, res: Response) {
     throw new BadRequestError({ message: `Invalid update status application, list allowed: ${LIST_STUDENT_ALLOWED_UPDATE_STATUS.join(',')}` })
   }
 
-  const application = await ApplicationService.update(id, { 
+  const application = await ApplicationService.update(id, {
     status: payload.status
   });
 
@@ -78,7 +92,7 @@ export async function createApplication(req: Request, res: Response) {
 export async function adminListApplications(req: Request, res: Response) {
   if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
 
-  const { data, pagination} = await ApplicationService.findAll({ 
+  const { data, pagination } = await ApplicationService.findAll({
     company_id: _.toNumber(req.query.company_id) || null,
     job_id: _.toNumber(req.query.job_id) || null,
     user_id: _.toNumber(req.query.user_id) || null,
@@ -106,7 +120,7 @@ export async function companyListApplications(req: Request, res: Response) {
     }
   }
 
-  const { data, pagination} = await ApplicationService.findAll({ 
+  const { data, pagination } = await ApplicationService.findAll({
     company_id: company.id,
     job_id: _.toNumber(req.query.job_id) || null,
     statuses: convert.split(req.query.statuses as string, ',', String) as ApplicationStatus[],
@@ -130,7 +144,7 @@ export async function companyGetApplication(req: Request, res: Response) {
     user_id: req.user.userId,
   });
 
-  const application = await ApplicationService.findOne({ 
+  const application = await ApplicationService.findOne({
     id,
     company_id: company.id
   });
@@ -168,7 +182,7 @@ export async function companyUpdateApplication(req: Request, res: Response) {
     }
   }
 
-  const application = await ApplicationService.update(id, { 
+  const application = await ApplicationService.update(id, {
     status: payload.status,
     feedback: payload.feedback,
     interview_time: payload.interview_time,
