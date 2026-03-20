@@ -32,6 +32,7 @@ import certificationRoutes from "./routes/certifications.route";
 import applicationRoutes from "./routes/applications.route";
 import studentRoutes from "./routes/student.route";
 import adminRoutes from "./routes/admin.route";
+import chatbotRoutes from "./chatbot/chatbot.route";
 import jobNotificationSubscriptionsRoutes from "./routes/job_notification_subscriptions.route";
 import { requestLogger, errorHandler } from "@/middlewares";
 import { specs, swaggerUi } from "./config/swagger";
@@ -94,6 +95,7 @@ export const createApp = () => {
   // app.use("/api/recommendations", recommendationRoutes);
   app.use("/api/students", studentRoutes);
   app.use("/api/admin", adminRoutes);
+  app.use("/api/chatbot", chatbotRoutes);
   app.use("/api/job-notification-subscriptions", jobNotificationSubscriptionsRoutes);
 
   // app.use("/api/experiences", experiencesRoutes);

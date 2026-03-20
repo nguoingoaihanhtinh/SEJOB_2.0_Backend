@@ -17,8 +17,13 @@ export class UserRepository {
     const fields = _.get(input, "fields", this.fields);
     const page = _.get(input, "page");
     const limit = _.get(input, "limit");
+    const user_ids = _.get(input, "user_ids") || [];
     const hasPagination = page && limit;
     let dbQuery = this.db.from("users").select(fields, { count: "exact" });
+
+    if (user_ids.length > 0) {
+      dbQuery = dbQuery.in("user_id", user_ids);
+    }
     // let dbQuery = this.db.from("users").select(fields, { count: "exact" }).eq("is_active", true);
 
     const executeQuery = hasPagination ? dbQuery.range((page - 1) * limit, page * limit - 1) : dbQuery;

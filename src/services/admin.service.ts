@@ -200,28 +200,25 @@ export class AdminService {
 
       let users: UserInfo[] = [];
       if (userIds.length > 0) {
-        const userResults = await Promise.all(
-          userIds.map(async (userId) => {
-            try {
-              const user = await userRepository.findOne({ user_id: userId });
-              return user;
-            } catch (error) {
-              console.error(`Error fetching user ${userId}:`, error);
-              return null;
-            }
-          }),
-        );
+        try {
+          const { data: usersData } = await userRepository.findAll({
+            user_ids: userIds,
+            page: 1,
+            limit: userIds.length,
+            fields: "user_id, first_name, last_name, role, is_active, updated_at",
+          });
 
-        users = userResults
-          .filter((user) => user !== null)
-          .map((user) => ({
-            user_id: (user as any).user_id,
-            first_name: (user as any).first_name,
-            last_name: (user as any).last_name,
-            role: (user as any).role,
-            is_active: (user as any).is_active,
-            updated_at: (user as any).updated_at,
+          users = (usersData as any[]).map((user) => ({
+            user_id: user.user_id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            role: user.role,
+            is_active: user.is_active,
+            updated_at: user.updated_at,
           }));
+        } catch (error) {
+          console.error("Error fetching users batch:", error);
+        }
       }
 
       const usersMap = _.keyBy(users, "user_id");

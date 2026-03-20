@@ -14,6 +14,7 @@ export type UserUpdate = Database["public"]["Tables"]["users"]["Update"];
 
 export interface UserQueryParams extends QueryParams {
   user_id?: number;
+  user_ids?: number[];
   email?: string;
   reset_token?: string;
 }
