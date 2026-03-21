@@ -3,6 +3,7 @@ import { NotificationInsert, NotificationQueryAll, NotificationType } from "@/ty
 import { BadRequestError } from "@/utils/errors";
 import validate from "@/utils/validate";
 import _ from "lodash";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export class NotificationService {
   async findAll(input: NotificationQueryAll) {
@@ -19,7 +20,7 @@ export class NotificationService {
     const notification_type = _.get(data, 'type');
 
     if (!validate.valid_enum(NotificationType, notification_type)) {
-        throw new BadRequestError({ message: "Invalid notification type!" });
+        throw new BadRequestError({ message: MessageUtil.get("INVALID_NOTIFICATION_TYPE") });
     }
 
     return await notificationRepository.create({

@@ -2,6 +2,7 @@ import _ from "lodash";
 import { Request, Response } from "express-serve-static-core";
 import { supabase } from "@/config/supabase";
 import { BadRequestError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getProvinces(req: Request, res: Response) {
   const { data, error, count } = await supabase.from("provinces").select("id, country_id, name", { count: "exact" });
@@ -19,7 +20,7 @@ export async function getProvinces(req: Request, res: Response) {
 export async function getWards(req: Request, res: Response) {
   const province_id = req.params.provinceId;
 
-  if (!province_id) throw new BadRequestError({ message: "Missing params provinceId" });
+  if (!province_id) throw new BadRequestError({ message: MessageUtil.get("MISSING_PARAMS_PROVINCEID") });
 
   const { data, error, count } = await supabase
     .from("wards")

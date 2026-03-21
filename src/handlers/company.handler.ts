@@ -7,6 +7,7 @@ import { BadRequestError, NotFoundError } from "@/utils/errors";
 import { updateCompanySchema } from "@/dtos/company/UpdateCompany.dto";
 import { updateCompanyAdminSchema } from "@/dtos/company/UpdateCompanyAdmin.dto";
 import convert from "@/utils/convert";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getCompanies(req: Request, res: Response) {
   const { page, limit } = req.query;
@@ -30,7 +31,7 @@ export async function getCompany(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   const company = await CompanyService.findOne({ company_id: _.toNumber(id) });
@@ -44,7 +45,7 @@ export async function getCompany(req: Request, res: Response) {
 export async function createCompany(req: Request, res: Response) {
 
   if (!req.user?.userId) {
-    throw new BadRequestError({ message: "Missing user_id." });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_USER_ID") });
   }
 
   const data = {
@@ -65,7 +66,7 @@ export async function createCompany(req: Request, res: Response) {
 export async function updateCompany(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   const companyData = validate.schema_validate(updateCompanySchema, request.body);
@@ -81,7 +82,7 @@ export async function updateCompany(request: Request, response: Response) {
 export async function deleteCompany(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   await CompanyService.delete(_.toNumber(id));
@@ -94,7 +95,7 @@ export async function deleteCompany(request: Request, response: Response) {
 export async function updateCompanyAdmin(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   const companyData = validate.schema_validate(updateCompanyAdminSchema, request.body);

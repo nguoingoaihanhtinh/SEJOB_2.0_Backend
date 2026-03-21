@@ -2,6 +2,7 @@ import { CreateExperienceDTO, UpdateExperienceDTO } from "@/dtos/student/Experie
 import experiencesRepository from "@/repositories/experiences.repository";
 import { ExperienceQueryParams } from "@/types/common";
 import { NotFoundError, BadRequestError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export class ExperienceService {
     async findAll(input: ExperienceQueryParams) {
@@ -11,14 +12,14 @@ export class ExperienceService {
     async findOne(id: number) {
         const respond = await experiencesRepository.findOne(id);
         if (!respond) {
-            throw new NotFoundError({ message: "Experience not found"});
+            throw new NotFoundError({ message: MessageUtil.get("EXPERIENCE_NOT_FOUND")});
         }
         return respond;
     }
 
     async create(input: CreateExperienceDTO) {
       if (!input.company || !input.position || !input.start_date)
-        throw new BadRequestError({ message: "company, position, and start_date are required" });
+        throw new BadRequestError({ message: MessageUtil.get("COMPANY_POSITION_AND_START_DATE_ARE_REQUIRED") });
       return await experiencesRepository.create(input as any);
     }
 

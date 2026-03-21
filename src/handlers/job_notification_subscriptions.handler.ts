@@ -2,6 +2,7 @@ import { Request, Response } from "express-serve-static-core";
 import jobNotificationSubscriptionsRepository from "@/repositories/job_notification_subscriptions.repository";
 import studentRepository from "@/repositories/student.repository";
 import { NotFoundError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 /**
  * Get subscription status for current user
@@ -12,7 +13,7 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
   // Find student by user_id
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student) {
-    throw new NotFoundError({ message: "Student profile not found" });
+    throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const subscription = await jobNotificationSubscriptionsRepository.findByStudentId(student.id);
@@ -35,7 +36,7 @@ export async function subscribe(req: Request, res: Response) {
   // Find student by user_id
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student) {
-    throw new NotFoundError({ message: "Student profile not found" });
+    throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   // Upsert subscription (create or update to active)
@@ -46,7 +47,7 @@ export async function subscribe(req: Request, res: Response) {
 
   res.status(200).json({
     success: true,
-    message: "Successfully subscribed to job notifications",
+    message: MessageUtil.get("SUCCESSFULLY_SUBSCRIBED_TO_JOB_NOTIFICATIONS"),
     data: subscription,
   });
 }
@@ -60,7 +61,7 @@ export async function unsubscribe(req: Request, res: Response) {
   // Find student by user_id
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student) {
-    throw new NotFoundError({ message: "Student profile not found" });
+    throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   // Check if subscription exists
@@ -68,7 +69,7 @@ export async function unsubscribe(req: Request, res: Response) {
   if (!existing) {
     res.status(200).json({
       success: true,
-      message: "Already unsubscribed",
+      message: MessageUtil.get("ALREADY_UNSUBSCRIBED"),
     });
     return;
   }
@@ -80,7 +81,7 @@ export async function unsubscribe(req: Request, res: Response) {
 
   res.status(200).json({
     success: true,
-    message: "Successfully unsubscribed from job notifications",
+    message: MessageUtil.get("SUCCESSFULLY_UNSUBSCRIBED_FROM_JOB_NOTIFICATIONS"),
   });
 }
 
@@ -94,7 +95,7 @@ export async function toggleSubscription(req: Request, res: Response) {
   // Find student by user_id
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student) {
-    throw new NotFoundError({ message: "Student profile not found" });
+    throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   // Upsert subscription

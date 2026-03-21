@@ -6,6 +6,7 @@ import { BadRequestError } from "@/utils/errors";
 import { updateCategorySchema } from "@/dtos/job/UpdateCategory.dto";
 import { createCategorySchema } from "@/dtos/job/CreateCategory.dto";
 import convert from "@/utils/convert";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getCategories(req: Request, res: Response) {
   const { page, limit, ids, hasPagination } = req.query;
@@ -28,7 +29,7 @@ export async function getCategory(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   const category = await CategoryService.findOne({ id: _.toNumber(id) });
@@ -53,7 +54,7 @@ export async function createCategory(request: Request, response: Response) {
 export async function updateCategory(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   request.body.id = _.toNumber(id);
@@ -72,7 +73,7 @@ export async function updateCategory(request: Request, response: Response) {
 export async function deleteCategory(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   await CategoryService.deleteCategory(_.toNumber(id));

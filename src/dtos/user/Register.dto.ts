@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 const companyProfileSchema = z.object({
   name: z.string().min(1, "Company name is required"),
@@ -61,13 +62,13 @@ export const registerSchema = z
       return true;
     },
     {
-      message: "Company profile is required for Employer accounts",
+      message: MessageUtil.get("COMPANY_PROFILE_IS_REQUIRED_FOR_EMPLOYER_ACCOUNTS"),
       path: ["company"],
     }
   )
   .refine((data) => data.password === data.confirm_password, {
     path: ["confirm_password"],
-    message: "Passwords do not match",
+    message: MessageUtil.get("PASSWORDS_DO_NOT_MATCH"),
   });
 
 export type RegisterDto = z.infer<typeof registerSchema>;

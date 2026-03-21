@@ -8,6 +8,7 @@ import socialLinkService from "@/services/social_links.service";
 import { createSocialLinkSchema, updateSocialLinkSchema } from "@/dtos/student/SocialLinks.dto";
 import studentRepository from "@/repositories/student.repository";
 import _ from "lodash";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function createSocialLink(req: Request, res: Response) {
   const userId = _.toNumber(req.params.userId);
@@ -15,7 +16,7 @@ export async function createSocialLink(req: Request, res: Response) {
 
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const data = await socialLinkService.create({
@@ -32,12 +33,12 @@ export async function updateSocialLink(req: Request, res: Response) {
   const update_data = validate.schema_validate(updateSocialLinkSchema, req.body);
 
   if (!platform) {
-    throw new BadRequestError({ message: "platform is required" });
+    throw new BadRequestError({ message: MessageUtil.get("PLATFORM_IS_REQUIRED") });
   }
 
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const data = await socialLinkService.update({
@@ -54,12 +55,12 @@ export async function deleteSocialLink(req: Request, res: Response) {
   const platform = req.query.platform;
 
   if (!platform) {
-    throw new BadRequestError({ message: "platform is required" });
+    throw new BadRequestError({ message: MessageUtil.get("PLATFORM_IS_REQUIRED") });
   }
 
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   await socialLinkService.delete({
@@ -67,7 +68,7 @@ export async function deleteSocialLink(req: Request, res: Response) {
     platform: platform as string,
   });
 
-  res.status(200).json({ success: true, message: "Social link deleted" });
+  res.status(200).json({ success: true, message: MessageUtil.get("SOCIAL_LINK_DELETED") });
 }
 
 export async function listSocialLinks(req: Request, res: Response) {
@@ -75,7 +76,7 @@ export async function listSocialLinks(req: Request, res: Response) {
 
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student || student.id == null) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const data = await socialLinkService.list({ student_id: student.id, userId });
@@ -87,7 +88,7 @@ export async function getSocialLink(req: Request, res: Response) {
 
   const student = await studentRepository.findOne({ user_id: _.toNumber(userId) });
   if (!student || student.id == null) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const data = await socialLinkService.findOne({

@@ -10,6 +10,7 @@ import path from "path";
 import { MediaService } from "@/services/media.service";
 import _ from "lodash";
 import ApplicationStatusDetailsRepository from "@/repositories/application_status_details.repository";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 function toDatabaseFormat<T extends Record<string, any>>(obj: T): any {
   const result: any = {};
@@ -27,7 +28,7 @@ export const ApplicationService = {
   async findOne(params: ApplicationQueryParams) {
     const app = await ApplicationRepository.findOne(params);
 
-    if (!app) throw new NotFoundError({ message: "Application not found" });
+    if (!app) throw new NotFoundError({ message: MessageUtil.get("APPLICATION_NOT_FOUND") });
 
     return app;
   },
@@ -39,20 +40,20 @@ export const ApplicationService = {
     });
 
     if (existing) {
-      throw new ConflictError({ message: "You have already applied to this job" });
+      throw new ConflictError({ message: MessageUtil.get("YOU_HAVE_ALREADY_APPLIED_TO_THIS_JOB") });
     }
 
     const { job } = await JobRepository.findOne(payload.job_id);
 
     if (!job) {
-      throw new BadRequestError({ message: "job_id not found for this application!" });
+      throw new BadRequestError({ message: MessageUtil.get("JOB_ID_NOT_FOUND_FOR_THIS_APPLICATION") });
     }
 
     if (!payload.resume_url) {
       const student = await studentRepository.findOne({ user_id: payload.user_id });
 
       if (!student || !student.id) {
-        throw new BadRequestError({ message: "Invalid user_id!" });
+        throw new BadRequestError({ message: MessageUtil.get("INVALID_USER_ID") });
       }
 
       const { data: cv, error } = await supabase.from("cv").select("*").eq("studentid", student.id).single();
@@ -61,7 +62,7 @@ export const ApplicationService = {
       const oldFilename = path.basename(cv?.filepath ?? "");
 
       if (!oldFilename) {
-        throw new BadRequestError({ message: "User don't have CV!" });
+        throw new BadRequestError({ message: MessageUtil.get("USER_DON_T_HAVE_CV") });
       }
       
       const { url } = await MediaService.clone(oldFilename);
@@ -69,7 +70,7 @@ export const ApplicationService = {
     }
 
     if (!payload.resume_url) {
-      throw new BadRequestError({ message: "Missing resume_url!" });
+      throw new BadRequestError({ message: MessageUtil.get("MISSING_RESUME_URL") });
     }
 
     const dbPayload = toDatabaseFormat({
@@ -126,7 +127,7 @@ export const ApplicationService = {
     const result = await ApplicationRepository.findOne({ id });
 
     if (!result) {
-      throw new NotFoundError({ message: "Application not found after update" });
+      throw new NotFoundError({ message: MessageUtil.get("APPLICATION_NOT_FOUND_AFTER_UPDATE") });
     }
 
     return result;

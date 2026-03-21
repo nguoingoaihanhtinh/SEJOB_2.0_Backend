@@ -12,6 +12,7 @@ import convert from "@/utils/convert";
 import { TOPCV_ID_TO_MY_PROVINCE_ID } from "@/utils/cityMapper";
 import { getTopCVTotal, getTopCVwithOffset } from "./topcv.handler";
 import { verifyToken } from "@/utils/jwt.util";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 const getOptionalUserId = (req: Request): number | null => {
   const authHeader = req.headers.authorization;
@@ -134,12 +135,12 @@ export async function getJob(req: Request, res: Response) {
   const formatTopCv = req.query.formatTopCv !== "false";
 
   if (Number.isNaN(id)) {
-    throw new BadRequestError({ message: "Invalid job id" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_JOB_ID") });
   }
 
   const job = await jobService.findOne({ jobId: id });
   if (!job) {
-    throw new NotFoundError({ message: "Job not found" });
+    throw new NotFoundError({ message: MessageUtil.get("JOB_NOT_FOUND") });
   }
 
   let responseData = job;
@@ -177,17 +178,17 @@ export async function updateJob(req: Request, res: Response) {
   const id = _.toNumber(req.params.id);
 
   if (!id) {
-    throw new BadRequestError({ message: "Invalid job id" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_JOB_ID") });
   }
 
   const jobData = validate.schema_validate(updateJobSchema, req.body);
 
   await jobService.findOne({ jobId: id }).then((job) => {
     if (!job) {
-      throw new NotFoundError({ message: "Job not found" });
+      throw new NotFoundError({ message: MessageUtil.get("JOB_NOT_FOUND") });
     }
     if (job.status !== jobData.status && req.user?.role !== "Admin" && req.user?.role !== "Manager") {
-      throw new BadRequestError({ message: "Only Admin or Manager can update job status" });
+      throw new BadRequestError({ message: MessageUtil.get("ONLY_ADMIN_OR_MANAGER_CAN_UPDATE_JOB_STATUS") });
     }
   });
 
@@ -205,7 +206,7 @@ export async function deleteJob(req: Request, res: Response) {
   const id = _.toNumber(req.params.id);
 
   if (!id) {
-    throw new BadRequestError({ message: "Invalid job id" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_JOB_ID") });
   }
 
   await jobService.delete(id);
@@ -218,7 +219,7 @@ export async function deleteJob(req: Request, res: Response) {
 export async function listJobsByCompany(req: Request, res: Response) {
   const companyId = _.toInteger(req.params.id);
   if (!companyId) {
-    throw new BadRequestError({ message: "Invalid company ID" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_COMPANY_ID") });
   }
 
   const { page, limit } = validate.schema_validate(companyJobQuerySchema, req.query);

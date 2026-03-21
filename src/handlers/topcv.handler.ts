@@ -4,6 +4,7 @@ import { getTopCVAccessToken } from "@/utils/topcv-auth";
 import { MY_PROVINCE_ID_TO_TOPCV_ID } from "@/utils/cityMapper";
 import { getPrimaryTopCVCategory } from "@/utils/categoryMapper";
 import { getTopCVExpIds } from "@/utils/levelMapper";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 const topCVTotalCache = new Map<string, { total: number; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
@@ -220,7 +221,7 @@ export async function listTopCVJobs(req: Request, res: Response) {
     if (error.code === "ECONNABORTED") {
       return res.status(504).json({
         success: false,
-        message: "TopCV API timeout",
+        message: MessageUtil.get("TOPCV_API_TIMEOUT"),
       });
     }
     console.error("TopCV API error in listTopCVJobs:", {
@@ -231,7 +232,7 @@ export async function listTopCVJobs(req: Request, res: Response) {
     });
     res.status(502).json({
       success: false,
-      message: "Network error or TopCV unavailable",
+      message: MessageUtil.get("NETWORK_ERROR_OR_TOPCV_UNAVAILABLE"),
     });
   }
 }
@@ -243,7 +244,7 @@ export async function getTopCVJobDetail(req: Request, res: Response) {
     if (!token) {
       return res.status(502).json({
         success: false,
-        message: "TopCV authentication unavailable",
+        message: MessageUtil.get("TOPCV_AUTHENTICATION_UNAVAILABLE"),
       });
     }
     const response = await axios.get(`${process.env.TOPCV_JOBS_URL}/${id}`, {
@@ -267,7 +268,7 @@ export async function getTopCVJobDetail(req: Request, res: Response) {
     if (error.code === "ECONNABORTED") {
       return res.status(504).json({
         success: false,
-        message: "TopCV API timeout",
+        message: MessageUtil.get("TOPCV_API_TIMEOUT"),
       });
     }
     console.error("TopCV API error in getTopCVJobDetail:", {
@@ -278,7 +279,7 @@ export async function getTopCVJobDetail(req: Request, res: Response) {
     });
     res.status(502).json({
       success: false,
-      message: "Network error or TopCV unavailable",
+      message: MessageUtil.get("NETWORK_ERROR_OR_TOPCV_UNAVAILABLE"),
     });
   }
 }
@@ -288,7 +289,7 @@ export async function getTopCVJobRecommend(req: Request, res: Response) {
   if (!email) {
     return res.status(400).json({
       success: false,
-      message: "Missing email parameter",
+      message: MessageUtil.get("MISSING_EMAIL_PARAMETER"),
     });
   }
 
@@ -311,7 +312,7 @@ export async function getTopCVJobRecommend(req: Request, res: Response) {
     if (!token) {
       return res.status(502).json({
         success: false,
-        message: "TopCV authentication unavailable",
+        message: MessageUtil.get("TOPCV_AUTHENTICATION_UNAVAILABLE"),
       });
     }
     const response = await axios.get(`${process.env.TOPCV_JOBS_URL}/recommend`, {
@@ -341,7 +342,7 @@ export async function getTopCVJobRecommend(req: Request, res: Response) {
     if (error.code === "ECONNABORTED") {
       return res.status(504).json({
         success: false,
-        message: "TopCV API timeout",
+        message: MessageUtil.get("TOPCV_API_TIMEOUT"),
       });
     }
     console.error("TopCV API error in getTopCVJobRecommend:", {
@@ -352,7 +353,7 @@ export async function getTopCVJobRecommend(req: Request, res: Response) {
     });
     res.status(502).json({
       success: false,
-      message: "Network error or TopCV unavailable",
+      message: MessageUtil.get("NETWORK_ERROR_OR_TOPCV_UNAVAILABLE"),
     });
   }
 }

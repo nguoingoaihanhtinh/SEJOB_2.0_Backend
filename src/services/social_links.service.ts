@@ -5,15 +5,16 @@ import studentRepo from "@/repositories/student.repository";
 import { CreateSocialLinkDto, UpdateSocialLinkDto } from "@/dtos/student/SocialLinks.dto";
 import socialLinksRepository from "@/repositories/social_links.repository";
 import { SocialLinkQueryParams } from "@/types/common";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export class SocialLinkService {
   async assertStudentOwnership(student_id: number, userId: number) {
     const student = await studentRepo.findOne({ student_id });
     if (!student) {
-      throw new NotFoundError({ message: "Student profile not found" });
+      throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
     }
     if (student.user_id !== userId) {
-      throw new BadRequestError({ message: "You do not own this student profile" });
+      throw new BadRequestError({ message: MessageUtil.get("YOU_DO_NOT_OWN_THIS_STUDENT_PROFILE") });
     }
   }
 

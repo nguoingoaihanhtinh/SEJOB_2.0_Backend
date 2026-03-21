@@ -4,6 +4,7 @@ import { createEducationSchema, updateEducationSchema } from "@/dtos/student/Edu
 import { EducationService } from "@/services/educations.service";
 import { UnauthorizedError } from "@/utils/errors";
 import studentRepository from "@/repositories/student.repository";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function listEducations(req: Request, res: Response) {
   const { page, limit } = req.query;
@@ -21,16 +22,16 @@ export async function getEducation(req: Request, res: Response) {
 }
 
 export async function createEducation(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students can add education" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_ADD_EDUCATION") });
   }
 
   const payload = validate.schema_validate(createEducationSchema, req.body);
 
   const student = await studentRepository.findByUserId(req.user.userId);
   if (!student) {
-    throw new UnauthorizedError({ message: "Student profile not found" });
+    throw new UnauthorizedError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const finalPayload = {
@@ -43,7 +44,7 @@ export async function createEducation(req: Request, res: Response) {
 }
 
 export async function updateEducation(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   const id = Number(req.params.id);
   const payload = validate.schema_validate(updateEducationSchema, req.body);
   const updated = await EducationService.update(id, payload);
@@ -51,16 +52,16 @@ export async function updateEducation(req: Request, res: Response) {
 }
 
 export async function deleteEducation(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   const id = Number(req.params.id);
   await EducationService.remove(id);
   res.status(204).send();
 }
 
 export async function getEducationByStudentId(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students have education records" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_HAVE_EDUCATION_RECORDS") });
   }
 
   const student = await studentRepository.findByUserId(req.user.userId);

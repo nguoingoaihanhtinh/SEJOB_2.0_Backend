@@ -5,6 +5,7 @@ import jobRepository from "@/repositories/job.repository";
 import applicationRepository from "@/repositories/application.repository";
 import { JobStatus } from "@/types/common";
 import { BadRequestError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 interface UserInfo {
   user_id: number;
@@ -81,7 +82,7 @@ export class AdminService {
       };
     } catch (error) {
       console.error("Error in AdminService.getDashboardData:", error);
-      throw new BadRequestError({ message: "Failed to fetch dashboard data" });
+      throw new BadRequestError({ message: MessageUtil.get("FAILED_TO_FETCH_DASHBOARD_DATA") });
     }
   }
 

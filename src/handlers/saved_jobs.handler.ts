@@ -4,13 +4,14 @@ import validate from "@/utils/validate";
 import { BadRequestError } from "@/utils/errors";
 import { saveJobSchema } from "@/dtos/user/SaveJob.dto";
 import saved_jobsService from "@/services/saved_jobs.service";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function saveJob(req: Request, res: Response) {
   const user_id = req.user!.userId;
   const role = req.user!.role;
 
   if (role !== "Student") {
-    throw new BadRequestError({ message: "Only students can save jobs" });
+    throw new BadRequestError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_SAVE_JOBS") });
   }
 
   const { job_id } = validate.schema_validate(saveJobSchema, req.body);
@@ -25,14 +26,14 @@ export async function unsaveJob(req: Request, res: Response) {
   const role = req.user!.role;
 
   if (role !== "Student") {
-    throw new BadRequestError({ message: "Only students can unsave jobs" });
+    throw new BadRequestError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_UNSAVE_JOBS") });
   }
 
   const { job_id } = req.params;
   const jobIdNum = Number(job_id);
 
   if (isNaN(jobIdNum) || jobIdNum <= 0) {
-    throw new BadRequestError({ message: "Invalid job ID" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_JOB_ID") });
   }
 
   await saved_jobsService.unsaveJob({ user_id, job_id: jobIdNum });
@@ -47,7 +48,7 @@ export async function getSavedJobs(req: Request, res: Response) {
   const limit = Number(req.query.limit) || 10;
 
   if (page < 1 || limit < 1 || limit > 100) {
-    throw new BadRequestError({ message: "Invalid pagination parameters" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_PAGINATION_PARAMETERS") });
   }
 
   const result = await saved_jobsService.getSavedJobsByUser(user_id, page, limit);
