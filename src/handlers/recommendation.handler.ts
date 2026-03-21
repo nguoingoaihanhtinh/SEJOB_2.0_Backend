@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import RecommendationService from "@/services/recommendation.service";
+import topicSuggestionService from "@/services/topic_suggestion.service";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export class RecommendationHandler {
     private service: RecommendationService;
@@ -18,7 +20,7 @@ export class RecommendationHandler {
             if (!userId) {
                 return res.status(401).json({
                     success: false,
-                    message: "Unauthorized",
+                    message: MessageUtil.get("UNAUTHORIZED"),
                 });
             }
 
@@ -42,13 +44,13 @@ export class RecommendationHandler {
      */
     getSimilarJobs = async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const jobId = parseInt(req.params.jobId || "0");
+            const jobId = parseInt((req.params.jobId as string) || "0");
             const limit = parseInt(req.query.limit as string) || 10;
 
             if (!jobId || isNaN(jobId)) {
                 return res.status(400).json({
                     success: false,
-                    message: "Invalid job ID",
+                    message: MessageUtil.get("INVALID_JOB_ID"),
                 });
             }
 
@@ -70,13 +72,13 @@ export class RecommendationHandler {
      */
     getMatchingStudents = async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const jobId = parseInt(req.params.jobId || "0");
+            const jobId = parseInt((req.params.jobId as string) || "0");
             const limit = parseInt(req.query.limit as string) || 20;
 
             if (!jobId || isNaN(jobId)) {
                 return res.status(400).json({
                     success: false,
-                    message: "Invalid job ID",
+                    message: MessageUtil.get("INVALID_JOB_ID"),
                 });
             }
 
@@ -102,7 +104,7 @@ export class RecommendationHandler {
             if (!userId) {
                 return res.status(401).json({
                     success: false,
-                    message: "Unauthorized",
+                    message: MessageUtil.get("UNAUTHORIZED"),
                 });
             }
 
@@ -145,7 +147,7 @@ export class RecommendationHandler {
             if (!userId) {
                 return res.status(401).json({
                     success: false,
-                    message: "Unauthorized",
+                    message: MessageUtil.get("UNAUTHORIZED"),
                 });
             }
 
@@ -157,6 +159,30 @@ export class RecommendationHandler {
                 success: true,
                 data: recommendations,
                 message: `Found ${recommendations.length} recommended jobs (including TopCV)`,
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * GET /api/recommendations/topics
+     */
+    getTopicSuggestions = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    message: MessageUtil.get("UNAUTHORIZED"),
+                });
+            }
+
+            const topics = await topicSuggestionService.suggestTopics(userId);
+
+            res.json({
+                success: true,
+                data: topics,
             });
         } catch (error) {
             next(error);

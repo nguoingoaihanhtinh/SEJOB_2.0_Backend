@@ -18,4 +18,6 @@ router.get("/students/:jobId", authenticate, handler.getMatchingStudents);
 
 router.get("/jobs/with-topcv", authenticate, handler.getRecommendedJobsWithTopCV);
 
+router.get("/topics", authenticate, handler.getTopicSuggestions);
+
 export default router;

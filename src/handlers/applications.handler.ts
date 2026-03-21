@@ -8,11 +8,13 @@ import { ApplicationStatus, LIST_EMPLOYER_ALLOWED_UPDATE_STATUS, LIST_STUDENT_AL
 import _ from "lodash";
 import companyService from "@/services/company.service";
 import jobRepository from "@/repositories/job.repository";
+import { MessageUtil } from "@/utils/MessageUtil";
+import cvScoringService from "@/services/cv_scoring.service";
 
 export async function listApplications(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
-  const { data, pagination} = await ApplicationService.findAll({ 
+  const { data, pagination } = await ApplicationService.findAll({
     user_id: req.user.userId,
     job_id: _.toNumber(req.query.job_id) || null,
     statuses: convert.split(req.query.statuses as string, ',', String) as ApplicationStatus[],
@@ -24,12 +26,12 @@ export async function listApplications(req: Request, res: Response) {
 }
 
 export async function getApplication(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   const id = Number(req.params.id);
 
   if (_.isNaN(id)) {
-    throw new BadRequestError({ message: "Invalid application id!" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_APPLICATION_ID") });
   }
 
   const application = await ApplicationService.findOne({ id, user_id: req.user.userId });
@@ -38,12 +40,12 @@ export async function getApplication(req: Request, res: Response) {
 }
 
 export async function updateApplication(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   const id = Number(req.params.id);
 
   if (_.isNaN(id)) {
-    throw new BadRequestError({ message: "Invalid application id!" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_APPLICATION_ID") });
   }
 
   const payload = validate.schema_validate(updateApplicationStatusSchema, req.body);
@@ -52,7 +54,7 @@ export async function updateApplication(req: Request, res: Response) {
     throw new BadRequestError({ message: `Invalid update status application, list allowed: ${LIST_STUDENT_ALLOWED_UPDATE_STATUS.join(',')}` })
   }
 
-  const application = await ApplicationService.update(id, { 
+  const application = await ApplicationService.update(id, {
     status: payload.status
   });
 
@@ -60,7 +62,7 @@ export async function updateApplication(req: Request, res: Response) {
 }
 
 export async function createApplication(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   const payload = validate.schema_validate(createApplicationSchema, req.body);
 
@@ -76,9 +78,9 @@ export async function createApplication(req: Request, res: Response) {
 // --- Admin Routes ---
 
 export async function adminListApplications(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
-  const { data, pagination} = await ApplicationService.findAll({ 
+  const { data, pagination } = await ApplicationService.findAll({
     company_id: _.toNumber(req.query.company_id) || null,
     job_id: _.toNumber(req.query.job_id) || null,
     user_id: _.toNumber(req.query.user_id) || null,
@@ -93,7 +95,7 @@ export async function adminListApplications(req: Request, res: Response) {
 // --- Company Routes ---
 
 export async function companyListApplications(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   const company = await companyService.findOne({
     user_id: req.user.userId,
@@ -102,11 +104,11 @@ export async function companyListApplications(req: Request, res: Response) {
   if (req.query.job_id) {
     const { job } = await jobRepository.findOne(_.toNumber(req.query.job_id) || 0);
     if (job && job?.company_id !== company.id) {
-      throw new UnauthorizedError({ message: "Authentication required" });
+      throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
     }
   }
 
-  const { data, pagination} = await ApplicationService.findAll({ 
+  const { data, pagination } = await ApplicationService.findAll({
     company_id: company.id,
     job_id: _.toNumber(req.query.job_id) || null,
     statuses: convert.split(req.query.statuses as string, ',', String) as ApplicationStatus[],
@@ -118,19 +120,19 @@ export async function companyListApplications(req: Request, res: Response) {
 }
 
 export async function companyGetApplication(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   const id = Number(req.params.id);
 
   if (_.isNaN(id)) {
-    throw new BadRequestError({ message: "Invalid application id!" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_APPLICATION_ID") });
   }
 
   const company = await companyService.findOne({
     user_id: req.user.userId,
   });
 
-  const application = await ApplicationService.findOne({ 
+  const application = await ApplicationService.findOne({
     id,
     company_id: company.id
   });
@@ -139,12 +141,12 @@ export async function companyGetApplication(req: Request, res: Response) {
 }
 
 export async function companyUpdateApplication(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   const id = Number(req.params.id);
 
   if (_.isNaN(id)) {
-    throw new BadRequestError({ message: "Invalid application id!" });
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_APPLICATION_ID") });
   }
 
   const payload = validate.schema_validate(updateApplicationStatusSchema, req.body);
@@ -158,17 +160,17 @@ export async function companyUpdateApplication(req: Request, res: Response) {
 
   if (payload.status === 'Interview_Scheduled') {
     if (!payload.interview_time || !payload.interview_location) {
-      throw new BadRequestError({ message: 'interview_time and interview_location are required for Interview_Scheduled status' });
+      throw new BadRequestError({ message: MessageUtil.get("INTERVIEW_TIME_AND_INTERVIEW_LOCATION_ARE_REQUIRED") });
     }
   }
 
   if (payload.status === 'Offered') {
     if (!payload.offered_salary) {
-      throw new BadRequestError({ message: 'offered_salary is required for Offered status' });
+      throw new BadRequestError({ message: MessageUtil.get("OFFERED_SALARY_IS_REQUIRED_FOR_OFFERED_STATUS") });
     }
   }
 
-  const application = await ApplicationService.update(id, { 
+  const application = await ApplicationService.update(id, {
     status: payload.status,
     feedback: payload.feedback,
     interview_time: payload.interview_time,
@@ -177,4 +179,16 @@ export async function companyUpdateApplication(req: Request, res: Response) {
   });
 
   res.status(200).json({ success: true, data: application });
+}
+
+export async function scoreApplication(req: Request, res: Response) {
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
+
+  const id = Number(req.params.id);
+  if (_.isNaN(id)) {
+    throw new BadRequestError({ message: MessageUtil.get("INVALID_APPLICATION_ID") });
+  }
+
+  const scoreResult = await cvScoringService.scoreApplication(id);
+  res.status(200).json({ success: true, data: scoreResult });
 }
