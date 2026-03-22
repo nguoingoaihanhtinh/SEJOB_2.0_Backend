@@ -39,6 +39,20 @@ export async function getApplication(req: Request, res: Response) {
   res.status(200).json({ success: true, data: application });
 }
 
+export async function getApplicationByJobId(req: Request, res: Response) {
+  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+
+  const job_id = Number(req.params.jobId);
+
+  if (_.isNaN(job_id)) {
+    throw new BadRequestError({ message: "Invalid job_id!" });
+  }
+
+  const application = await ApplicationService.findOne({ job_id, user_id: req.user.userId });
+
+  res.status(200).json({ success: true, data: application });
+}
+
 export async function updateApplication(req: Request, res: Response) {
   if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
