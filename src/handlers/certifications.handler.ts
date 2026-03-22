@@ -4,6 +4,7 @@ import { createCertificationSchema, updateCertificationSchema } from "@/dtos/stu
 import { certificationsService } from "@/services/certifications.service";
 import { BadRequestError, UnauthorizedError } from "@/utils/errors";
 import studentRepository from "@/repositories/student.repository";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function listCertifications(req: Request, res: Response) {
   const { page, limit } = req.query;
@@ -21,16 +22,16 @@ export async function getCertification(req: Request, res: Response) {
 }
 
 export async function createCertification(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students can create certifications" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_CREATE_CERTIFICATIONS") });
   }
 
   const payload = validate.schema_validate(createCertificationSchema, req.body);
 
   const student = await studentRepository.findByUserId(req.user.userId);
   if (!student) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const finalPayload = {
@@ -43,7 +44,7 @@ export async function createCertification(req: Request, res: Response) {
 }
 
 export async function updateCertification(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   const id = Number(req.params.id);
   const payload = validate.schema_validate(updateCertificationSchema, req.body);
   const updated = await certificationsService.update(id, payload);
@@ -51,16 +52,16 @@ export async function updateCertification(req: Request, res: Response) {
 }
 
 export async function deleteCertification(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   const id = Number(req.params.id);
   await certificationsService.remove(id);
   res.status(204).send();
 }
 
 export async function getCertificationsByStudentId(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students have certifications" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_HAVE_CERTIFICATIONS") });
   }
 
   const student = await studentRepository.findByUserId(req.user.userId);

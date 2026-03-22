@@ -5,6 +5,7 @@ import validate from "@/utils/validate";
 import { Request, Response } from "express-serve-static-core";
 import studentRepository from "@/repositories/student.repository";
 import _ from "lodash";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getExperiences(req: Request, res: Response) {
     const { page, limit } = req.query;
@@ -24,7 +25,7 @@ export async function getExperienceById(req: Request, res: Response) {
     const id = _.toNumber(req.params.id);
 
     if (!id) {
-      throw new BadRequestError({ message: 'Missing required param: id'});
+      throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
     }
 
     const data = await experiencesService.findOne(id);
@@ -40,16 +41,16 @@ export async function getExperienceById(req: Request, res: Response) {
 }
 
 export async function createExperience(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students can create experiences" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_CREATE_EXPERIENCES") });
   }
 
   const userData = validate.schema_validate(createExperienceSchema, req.body);
   const student = await studentRepository.findByUserId(req.user.userId);
   if (!student) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const newExperience = await experiencesService.create(userData);
@@ -60,10 +61,10 @@ export async function createExperience(req: Request, res: Response) {
 }
 
 export async function updateExperience(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
     const id = _.toNumber(req.params.id);
     if (!id) {
-      throw new BadRequestError({ message: 'Missing required param: id'});
+      throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
     }
     const userData = validate.schema_validate(updateExperienceSchema, req.body);
     const updatedExperience = await experiencesService.update({ id, data: userData });
@@ -75,10 +76,10 @@ export async function updateExperience(req: Request, res: Response) {
 }
 
 export async function deleteExperience(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
     const id = _.toNumber(req.params.id);
     if (!id) {
-      throw new BadRequestError({ message: 'Missing required param: id'});
+      throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
     }
     await experiencesService.delete(id);
 
@@ -86,9 +87,9 @@ export async function deleteExperience(req: Request, res: Response) {
 }
 
 export async function getExperiencesByStudentId(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students have experiences" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_HAVE_EXPERIENCES") });
   }
 
   const student = await studentRepository.findByUserId(req.user.userId);

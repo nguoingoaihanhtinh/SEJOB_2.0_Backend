@@ -5,6 +5,7 @@ import { Request, Response } from "express-serve-static-core";
 import { createUserSchema } from "@/dtos/user/CreateUser.dto";
 import { BadRequestError, NotFoundError } from "@/utils/errors";
 import { updateUserSchema } from "@/dtos/user/UpdateUser.dto";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getUsers(req: Request, res: Response) {
   const { page, limit } = req.query;
@@ -24,7 +25,7 @@ export async function getUserById(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   const user = await UserService.findOne({ userId: _.toNumber(id) });
@@ -54,7 +55,7 @@ export async function createUser(request: Request, response: Response) {
 export async function updateUser(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   const userData = validate.schema_validate(updateUserSchema, request.body);
@@ -70,7 +71,7 @@ export async function updateUser(request: Request, response: Response) {
 export async function deleteUser(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   await UserService.deleteUser(_.toNumber(id));

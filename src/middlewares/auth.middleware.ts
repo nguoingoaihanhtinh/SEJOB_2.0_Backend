@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken, JWTPayload } from "@/utils/jwt.util";
 import { UnauthorizedError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 declare global {
   namespace Express {
@@ -25,7 +26,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
 
     if (!token) {
       throw new UnauthorizedError({
-        message: "No token provided",
+        message: MessageUtil.get("NO_TOKEN_PROVIDED"),
         status: "NO_TOKEN",
       });
     }

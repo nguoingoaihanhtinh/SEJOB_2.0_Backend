@@ -1,5 +1,6 @@
 import { studentProfileSchema } from "@/dtos/user/Register.dto";
 import { z } from "zod";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export const updateUserSchema = z
   .object({
@@ -18,7 +19,7 @@ export const updateUserSchema = z
       return Object.keys(data).length > 0;
     },
     {
-      message: "At least one field must be provided for update",
+      message: MessageUtil.get("AT_LEAST_ONE_FIELD_MUST_BE_PROVIDED_FOR_UPDATE"),
     }
   );
 

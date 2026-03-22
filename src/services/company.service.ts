@@ -9,6 +9,7 @@ import CompanyTypeService from "@/services/company_type.service";
 import { CompanyQueryAllParams, CompanyQueryParams } from "@/types/common";
 import companyBranchesRepository from "@/repositories/company_branches.repository";
 import userRepository from "@/repositories/user.repository";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export class CompanyService {
   async findAll(input: CompanyQueryAllParams) {
@@ -39,7 +40,7 @@ export class CompanyService {
       const { data: companyTypes } = await CompanyTypeService.findAll({ company_type_ids: companyTypeIds });
 
       if (companyTypes.length !== companyTypeIds.length) {
-        throw new BadRequestError({ message: "Company type not found." });
+        throw new BadRequestError({ message: MessageUtil.get("COMPANY_TYPE_NOT_FOUND") });
       }
     }
 
@@ -102,7 +103,7 @@ export class CompanyService {
       const { data: companyTypes } = await CompanyTypeService.findAll({ company_type_ids: companyTypeIds });
 
       if (companyTypes.length !== companyTypeIds.length) {
-        throw new BadRequestError({ message: "One or more company types not found." });
+        throw new BadRequestError({ message: MessageUtil.get("ONE_OR_MORE_COMPANY_TYPES_NOT_FOUND") });
       }
     }
 
@@ -168,7 +169,7 @@ export class CompanyService {
       const { data: companyTypes } = await CompanyTypeService.findAll({ company_type_ids: companyTypeIds });
 
       if (companyTypes.length !== companyTypeIds.length) {
-        throw new BadRequestError({ message: "One or more company types not found." });
+        throw new BadRequestError({ message: MessageUtil.get("ONE_OR_MORE_COMPANY_TYPES_NOT_FOUND") });
       }
     }
 

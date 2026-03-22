@@ -19,6 +19,7 @@ import experiencesRepository from "@/repositories/experiences.repository";
 import projectsRepository from "@/repositories/projects.repository";
 import NotificationsService from "@/services/notifications.service";
 import { supabase } from "@/config/supabase";
+import { MessageUtil } from "@/utils/MessageUtil";
 export class UserService {
   async login(input: { loginData: LoginDto }) {
     const { loginData } = input;
@@ -29,16 +30,16 @@ export class UserService {
     });
 
     if (!curUser) {
-      throw new BadRequestError({ message: `Invalid email or password` });
+      throw new BadRequestError({ message: MessageUtil.get("INVALID_EMAIL_OR_PASSWORD") });
     }
     if (curUser.is_active === false) {
-      throw new BadRequestError({ message: "Account is deactivated" });
+      throw new BadRequestError({ message: MessageUtil.get("ACCOUNT_IS_DEACTIVATED") });
     }
 
     const isValidPassword = await bcrypt.compare(loginData.password, curUser.password);
 
     if (!isValidPassword) {
-      throw new BadRequestError({ message: `Invalid email or password` });
+      throw new BadRequestError({ message: MessageUtil.get("INVALID_EMAIL_OR_PASSWORD") });
     }
 
     const { password, ...user } = curUser;
@@ -59,7 +60,7 @@ export class UserService {
     const { registerData } = input;
 
     if (registerData.password !== registerData.confirm_password) {
-      throw new BadRequestError({ message: "Confirm password is not correct" });
+      throw new BadRequestError({ message: MessageUtil.get("CONFIRM_PASSWORD_IS_NOT_CORRECT") });
     }
 
     const hashedPassword = await bcrypt.hash(registerData.password, 10);
@@ -78,7 +79,7 @@ export class UserService {
 
     if (newUser.role === "Employer") {
       if (!company) {
-        throw new BadRequestError({ message: "Company profile is required for Employer accounts" });
+        throw new BadRequestError({ message: MessageUtil.get("COMPANY_PROFILE_IS_REQUIRED_FOR_EMPLOYER_ACCOUNTS") });
       }
 
       const {
@@ -323,13 +324,13 @@ export class UserService {
     if (userData.email) {
       const userWithEmail = await userRepository.findOne({ email: userData.email });
       if (userWithEmail && userWithEmail.user_id !== userId) {
-        throw new BadRequestError({ message: "Email already exists" });
+        throw new BadRequestError({ message: MessageUtil.get("EMAIL_ALREADY_EXISTS") });
       }
     }
 
     if (userData.updated_at && userData.updated_at !== existingUser.updated_at) {
       throw new BadRequestError({
-        message: "Record was modified by another user. Please refresh and try again.",
+        message: MessageUtil.get("RECORD_WAS_MODIFIED_BY_ANOTHER_USER_PLEASE_REFRESH"),
       });
     }
 
@@ -414,7 +415,7 @@ export class UserService {
     });
 
     if (!user || user.is_active === false) {
-      throw new NotFoundError({ message: "User with the provided email does not exist" });
+      throw new NotFoundError({ message: MessageUtil.get("USER_WITH_THE_PROVIDED_EMAIL_DOES_NOT_EXIST") });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -451,12 +452,12 @@ export class UserService {
       });
 
       if (!user || user.is_active === false) {
-        throw new BadRequestError({ message: "Invalid or expired OTP" });
+        throw new BadRequestError({ message: MessageUtil.get("INVALID_OR_EXPIRED_OTP") });
       }
 
       const expiresAt = user.reset_token_expires ? new Date(user.reset_token_expires).getTime() : 0;
       if (Date.now() > expiresAt || user.reset_token !== otp) {
-        throw new BadRequestError({ message: "Invalid or expired OTP" });
+        throw new BadRequestError({ message: MessageUtil.get("INVALID_OR_EXPIRED_OTP") });
       }
 
       targetUserId = user.user_id;
@@ -467,17 +468,17 @@ export class UserService {
       });
 
       if (!user || user.is_active === false) {
-        throw new NotFoundError({ message: "User not found" });
+        throw new NotFoundError({ message: MessageUtil.get("USER_NOT_FOUND") });
       }
 
       const isValid = await bcrypt.compare(old_password, user.password);
       if (!isValid) {
-        throw new BadRequestError({ message: "Old password is incorrect" });
+        throw new BadRequestError({ message: MessageUtil.get("OLD_PASSWORD_IS_INCORRECT") });
       }
 
       targetUserId = user.user_id;
     } else {
-      throw new BadRequestError({ message: "Invalid parameters" });
+      throw new BadRequestError({ message: MessageUtil.get("INVALID_PARAMETERS") });
     }
 
     const hashedPassword = await bcrypt.hash(new_password, 10);

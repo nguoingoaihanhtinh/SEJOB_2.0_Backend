@@ -7,6 +7,7 @@ import convert from "@/utils/convert";
 import EmploymentTypeService from "@/services/employment_types.service";
 import { createEmploymentTypeSchema } from "@/dtos/job/CreateEmploymentType.dto";
 import { updateEmploymentTypeSchema } from "@/dtos/job/UpdateEmploymentType.dto";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getEmploymentTypes(req: Request, res: Response) {
   const { page, limit, ids, hasPagination } = req.query;
@@ -29,7 +30,7 @@ export async function getEmploymentType(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   const employment_type = await EmploymentTypeService.findOne({ id: _.toNumber(id) });
@@ -54,7 +55,7 @@ export async function createEmploymentType(request: Request, response: Response)
 export async function updateEmploymentType(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   request.body.id = _.toNumber(id);
@@ -73,7 +74,7 @@ export async function updateEmploymentType(request: Request, response: Response)
 export async function deleteEmploymentType(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   await EmploymentTypeService.delete(_.toNumber(id));

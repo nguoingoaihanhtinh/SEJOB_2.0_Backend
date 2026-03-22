@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { JWTError, InternalServerError } from "./errors";
 import { env } from "@/config/env";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export interface JWTPayload {
   userId: number;
@@ -11,7 +12,7 @@ export interface JWTPayload {
 export const generateToken = (payload: JWTPayload): string => {
   if (!env.JWT_SECRET) {
     throw new InternalServerError({
-      message: "JWT_SECRET is not defined",
+      message: MessageUtil.get("JWT_SECRET_IS_NOT_DEFINED"),
       status: "JWT_CONFIG_ERROR",
     });
   }
@@ -24,7 +25,7 @@ export const generateToken = (payload: JWTPayload): string => {
 export const generateRefreshToken = (payload: JWTPayload): string => {
   if (!env.JWT_SECRET) {
     throw new InternalServerError({
-      message: "JWT_SECRET is not defined",
+      message: MessageUtil.get("JWT_SECRET_IS_NOT_DEFINED"),
       status: "JWT_CONFIG_ERROR",
     });
   }
@@ -37,7 +38,7 @@ export const verifyToken = (token: string): JWTPayload => {
   try {
     if (!env.JWT_SECRET) {
       throw new InternalServerError({
-        message: "JWT_SECRET is not defined",
+        message: MessageUtil.get("JWT_SECRET_IS_NOT_DEFINED"),
         status: "JWT_CONFIG_ERROR",
       });
     }
@@ -47,17 +48,17 @@ export const verifyToken = (token: string): JWTPayload => {
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
       throw new JWTError({
-        message: "Invalid token",
+        message: MessageUtil.get("INVALID_TOKEN"),
         status: "INVALID_TOKEN",
       });
     } else if (error instanceof jwt.TokenExpiredError) {
       throw new JWTError({
-        message: "Token has expired",
+        message: MessageUtil.get("TOKEN_HAS_EXPIRED"),
         status: "TOKEN_EXPIRED",
       });
     }
     throw new JWTError({
-      message: "Token verification failed",
+      message: MessageUtil.get("TOKEN_VERIFICATION_FAILED"),
       status: "TOKEN_ERROR",
     });
   }

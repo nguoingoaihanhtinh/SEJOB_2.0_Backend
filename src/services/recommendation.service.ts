@@ -9,6 +9,7 @@ import { getTopCVAccessToken } from "@/utils/topcv-auth";
 import { MY_PROVINCE_ID_TO_TOPCV_ID, mapMyProvinceToTopCV } from "@/utils/cityMapper";
 import { getPrimaryTopCVCategory } from "@/utils/categoryMapper";
 import { simpleCache } from "@/utils/cache";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export class RecommendationService {
   private jobRepo: JobRepository;
@@ -162,7 +163,7 @@ export class RecommendationService {
     // 1. Lấy student profile
     const studentResult = await this.getStudentWithCache(userId);
     if (!studentResult) {
-      throw new NotFoundError({ message: "Student profile not found" });
+      throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
     }
     const student = studentResult;
 
@@ -222,7 +223,7 @@ export class RecommendationService {
     // 1. Lấy target job
     const targetJob = await this.getJobDetailWithCache(jobId);
     if (!targetJob) {
-      throw new NotFoundError({ message: "Job not found" });
+      throw new NotFoundError({ message: MessageUtil.get("JOB_NOT_FOUND") });
     }
 
     // 2. Extract features từ target job
@@ -264,7 +265,7 @@ export class RecommendationService {
     // 1. Lấy job
     const job = await this.getJobDetailWithCache(jobId);
     if (!job) {
-      throw new NotFoundError({ message: "Job not found" });
+      throw new NotFoundError({ message: MessageUtil.get("JOB_NOT_FOUND") });
     }
 
     // 2. Extract features từ job
@@ -339,7 +340,7 @@ export class RecommendationService {
   ) {
     const studentResult = await this.getStudentWithCache(userId);
     if (!studentResult) {
-      throw new NotFoundError({ message: "Student profile not found" });
+      throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
     }
 
     const applicationsResultData = await this.getApplicationsWithCache(userId, 100);
@@ -496,7 +497,7 @@ export class RecommendationService {
     // 1. Lấy student profile
     const studentResult = await this.getStudentWithCache(userId);
     if (!studentResult) {
-      throw new NotFoundError({ message: "Student profile not found" });
+      throw new NotFoundError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
     }
     const student = studentResult;
 

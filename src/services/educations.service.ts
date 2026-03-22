@@ -1,6 +1,7 @@
 import EducationRepository from "@/repositories/educations.repository";
 import { CreateEducationDTO, UpdateEducationDTO } from "@/dtos/student/Educations.dto";
 import { NotFoundError, BadRequestError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export const EducationService = {
   async findAll(options: { page: number; limit: number }) {
@@ -13,12 +14,12 @@ export const EducationService = {
 
   async getOne(id: number) {
     const rec = await EducationRepository.findOne(id);
-    if (!rec) throw new NotFoundError({ message: "Education not found" });
+    if (!rec) throw new NotFoundError({ message: MessageUtil.get("EDUCATION_NOT_FOUND") });
     return rec;
   },
 
   async create(payload: CreateEducationDTO) {
-    if (!payload.school) throw new BadRequestError({ message: "school is required" });
+    if (!payload.school) throw new BadRequestError({ message: MessageUtil.get("SCHOOL_IS_REQUIRED") });
     return EducationRepository.insert(payload as any);
   },
 

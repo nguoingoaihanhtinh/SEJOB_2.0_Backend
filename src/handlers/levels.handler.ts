@@ -6,6 +6,7 @@ import { BadRequestError } from "@/utils/errors";
 import { updateLevelSchema } from "@/dtos/job/UpdateLevel.dto";
 import { createLevelSchema } from "@/dtos/job/CreateLevel.dto";
 import convert from "@/utils/convert";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getLevels(req: Request, res: Response) {
   const { page, limit, ids, hasPagination } = req.query;
@@ -28,7 +29,7 @@ export async function getLevel(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   const level = await LevelService.findOne({ id: _.toNumber(id) });
@@ -53,7 +54,7 @@ export async function createLevel(request: Request, response: Response) {
 export async function updateLevel(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   request.body.id = _.toNumber(id);
@@ -72,7 +73,7 @@ export async function updateLevel(request: Request, response: Response) {
 export async function deleteLevel(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   await LevelService.delete(_.toNumber(id));

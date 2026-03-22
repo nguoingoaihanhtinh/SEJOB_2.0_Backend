@@ -3,6 +3,7 @@ import convert from "@/utils/convert";
 import { BadRequestError } from "@/utils/errors";
 import { Request, Response } from "express-serve-static-core";
 import _ from "lodash";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getStudents(req: Request, res: Response) {
     const { page, limit } = req.query;
@@ -25,7 +26,7 @@ export async function getStudent(req: Request, res: Response) {
     const id = req.params.id;
 
     if (!id) {
-        throw new BadRequestError({ message: 'Missing required param: id'});
+        throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
     }
 
     const student = await studentService.findOne({ student_id: _.toNumber(id) });

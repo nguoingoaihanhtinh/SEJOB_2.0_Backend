@@ -6,6 +6,7 @@ import UsersService from "@/services/users.service";
 import { registerSchema } from "@/dtos/user/Register.dto";
 import { generateRefreshToken, verifyToken, generateToken } from "@/utils/jwt.util";
 import { forgotPasswordSchema, resetPasswordSchema, changePasswordSchema } from "@/dtos/user/Password.dto";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function login(req: Request, res: Response) {
   const loginData = validate.schema_validate(loginSchema, req.body);
@@ -60,21 +61,21 @@ export async function logout(req: Request, res: Response) {
   res.clearCookie("refresh_token", { path: "/" });
   res.status(200).json({
     success: true,
-    message: "Logged out successfully",
+    message: MessageUtil.get("LOGGED_OUT_SUCCESSFULLY"),
   });
 }
 export async function refreshToken(req: Request, res: Response) {
   try {
     const refreshToken = req.cookies?.refresh_token;
     if (!refreshToken) {
-      return res.status(401).json({ success: false, message: "Refresh token missing" });
+      return res.status(401).json({ success: false, message: MessageUtil.get("REFRESH_TOKEN_MISSING") });
     }
 
     let payload;
     try {
       payload = verifyToken(refreshToken);
     } catch (err) {
-      return res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+      return res.status(401).json({ success: false, message: MessageUtil.get("INVALID_OR_EXPIRED_REFRESH_TOKEN") });
     }
     const newAccessToken = generateToken({
       userId: payload.userId,
@@ -89,9 +90,9 @@ export async function refreshToken(req: Request, res: Response) {
       path: "/",
     });
 
-    return res.status(200).json({ success: true, message: "Token refreshed" });
+    return res.status(200).json({ success: true, message: MessageUtil.get("TOKEN_REFRESHED") });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(500).json({ success: false, message: MessageUtil.get("INTERNAL_SERVER_ERROR") });
   }
 }
 
@@ -102,7 +103,7 @@ export async function requestPasswordReset(req: Request, res: Response) {
 
   res.status(200).json({
     success: true,
-    message: "Nếu email tồn tại, bạn sẽ nhận được mã OTP trong vài giây.",
+    message: MessageUtil.get("N_U_EMAIL_T_N_T_I_B_N_S_NH_N_C_M_OTP_TRONG_V_I_GI"),
   });
 }
 
@@ -111,12 +112,12 @@ export async function resetPassword(req: Request, res: Response) {
 
   await UsersService.resetPassword({ email, otp, new_password });
 
-  res.status(200).json({ success: true, message: "Password reset successfully" });
+  res.status(200).json({ success: true, message: MessageUtil.get("PASSWORD_RESET_SUCCESSFULLY") });
 }
 
 export async function changePassword(req: Request, res: Response) {
   const { old_password, new_password } = validate.schema_validate(changePasswordSchema, req.body);
   const userId = req.user!.userId;
   await UsersService.resetPassword({ old_password, new_password, userId });
-  res.status(200).json({ success: true, message: "Password changed successfully" });
+  res.status(200).json({ success: true, message: MessageUtil.get("PASSWORD_CHANGED_SUCCESSFULLY") });
 }

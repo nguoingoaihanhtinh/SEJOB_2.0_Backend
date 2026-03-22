@@ -6,6 +6,7 @@ import { BadRequestError } from "@/utils/errors";
 import { createCompanyTypeSchema } from "@/dtos/company/CreateCompanyType.dto";
 import { updateCompanyTypeSchema } from "@/dtos/company/UpdateComnayType.dto";
 import convert from "@/utils/convert";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getCompanyTypes(req: Request, res: Response) {
   const { page, limit, company_type_ids } = req.query;
@@ -27,7 +28,7 @@ export async function getCompanyType(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   const companyType = await CompanyTypesService.findOne({ company_type_id: _.toNumber(id) });
@@ -53,7 +54,7 @@ export async function createCompanyType(request: Request, response: Response) {
 export async function updateCompanyType(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   const companyTypeData = validate.schema_validate(updateCompanyTypeSchema, request.body);
@@ -69,7 +70,7 @@ export async function updateCompanyType(request: Request, response: Response) {
 export async function deleteCompanyType(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: 'Missing required param: id'});
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
   }
 
   await CompanyTypesService.delete(_.toNumber(id));

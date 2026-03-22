@@ -2,24 +2,25 @@
 import { Request, Response } from "express";
 import { NotFoundError } from "@/utils/errors";
 import { supabase } from "@/config/supabase";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getCompanyStats(req: Request, res: Response) {
   const companyIdStr = req.params.id;
   const yearParam = req.query.year as string;
 
   if (!companyIdStr) {
-    throw new NotFoundError({ message: "Company ID is required" });
+    throw new NotFoundError({ message: MessageUtil.get("COMPANY_ID_IS_REQUIRED") });
   }
 
   const companyId = Number(companyIdStr);
   const year = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
   if (isNaN(companyId) || companyId <= 0) {
-    throw new NotFoundError({ message: "Invalid company ID" });
+    throw new NotFoundError({ message: MessageUtil.get("INVALID_COMPANY_ID") });
   }
 
   if (yearParam && (isNaN(year) || year < 2000 || year > 2100)) {
-    throw new NotFoundError({ message: "Invalid year parameter" });
+    throw new NotFoundError({ message: MessageUtil.get("INVALID_YEAR_PARAMETER") });
   }
 
   try {
@@ -62,7 +63,7 @@ export async function getCompanyStats(req: Request, res: Response) {
     console.error("🔥 getCompanyStats failed:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch company statistics",
+      message: MessageUtil.get("FAILED_TO_FETCH_COMPANY_STATISTICS"),
       error: error.message,
     });
   }

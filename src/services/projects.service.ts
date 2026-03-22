@@ -1,6 +1,7 @@
 import projectsRepository from "@/repositories/projects.repository";
 import { CreateProjectDTO, UpdateProjectDTO } from "@/dtos/student/ProjectsCertifications.dto";
 import { NotFoundError, BadRequestError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export const projectsService = {
   async findAll(options: { page: number; limit: number }) {
@@ -13,12 +14,12 @@ export const projectsService = {
 
   async getOne(id: number) {
     const rec = await projectsRepository.findOne(id);
-    if (!rec) throw new NotFoundError({ message: "Project not found" });
+    if (!rec) throw new NotFoundError({ message: MessageUtil.get("PROJECT_NOT_FOUND") });
     return rec;
   },
 
   async create(payload: CreateProjectDTO) {
-    if (!payload.name) throw new BadRequestError({ message: "name is required" });
+    if (!payload.name) throw new BadRequestError({ message: MessageUtil.get("NAME_IS_REQUIRED") });
     return projectsRepository.insert(payload as any);
   },
 

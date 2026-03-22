@@ -4,6 +4,7 @@ import { createProjectSchema, updateProjectSchema } from "@/dtos/student/Project
 import { projectsService } from "@/services/projects.service";
 import { BadRequestError, UnauthorizedError } from "@/utils/errors";
 import studentRepository from "@/repositories/student.repository";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function listProjects(req: Request, res: Response) {
   const { page, limit } = req.query;
@@ -21,17 +22,17 @@ export async function getProject(req: Request, res: Response) {
 }
 
 export async function createProject(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
 
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students can create projects" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_CREATE_PROJECTS") });
   }
 
   const payload = validate.schema_validate(createProjectSchema, req.body);
 
   const student = await studentRepository.findByUserId(req.user.userId);
   if (!student) {
-    throw new BadRequestError({ message: "Student profile not found" });
+    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
   }
 
   const finalPayload = {
@@ -44,7 +45,7 @@ export async function createProject(req: Request, res: Response) {
 }
 
 export async function updateProject(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   const id = Number(req.params.id);
   const payload = validate.schema_validate(updateProjectSchema, req.body);
   const updated = await projectsService.update(id, payload);
@@ -52,16 +53,16 @@ export async function updateProject(req: Request, res: Response) {
 }
 
 export async function deleteProject(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   const id = Number(req.params.id);
   await projectsService.remove(id);
   res.status(204).send();
 }
 
 export async function getProjectsByStudentId(req: Request, res: Response) {
-  if (!req.user) throw new UnauthorizedError({ message: "Authentication required" });
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
   if (req.user.role !== "Student") {
-    throw new UnauthorizedError({ message: "Only students have projects" });
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_HAVE_PROJECTS") });
   }
 
   const student = await studentRepository.findByUserId(req.user.userId);

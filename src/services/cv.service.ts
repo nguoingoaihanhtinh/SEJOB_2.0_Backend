@@ -2,6 +2,7 @@ import { CreateCvDTO, UpdateCvDTO } from "@/dtos/student/Cv.dto";
 import CVRepository from "@/repositories/cv.repository";
 
 import { NotFoundError, BadRequestError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export const CVService = {
   async findAll(options: { page: number; limit: number }) {
@@ -14,14 +15,14 @@ export const CVService = {
 
   async getOne(id: number) {
     const rec = await CVRepository.findOne(id);
-    if (!rec) throw new NotFoundError({ message: "CV not found" });
+    if (!rec) throw new NotFoundError({ message: MessageUtil.get("CV_NOT_FOUND") });
     return rec;
   },
 
   async create(payload: CreateCvDTO) {
-    if (!payload.studentid) throw new BadRequestError({ message: "studentid is required" });
-    if (!payload.title) throw new BadRequestError({ message: "title is required" });
-    if (!payload.filepath) throw new BadRequestError({ message: "filepath is required" });
+    if (!payload.studentid) throw new BadRequestError({ message: MessageUtil.get("STUDENTID_IS_REQUIRED") });
+    if (!payload.title) throw new BadRequestError({ message: MessageUtil.get("TITLE_IS_REQUIRED") });
+    if (!payload.filepath) throw new BadRequestError({ message: MessageUtil.get("FILEPATH_IS_REQUIRED") });
     return CVRepository.insert(payload as any);
   },
 

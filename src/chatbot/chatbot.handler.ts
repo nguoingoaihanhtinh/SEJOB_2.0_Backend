@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as chatbotService from "./chatbot.service";
 import { UserRole } from "./chatbot.types";
 import { BadRequestError } from "@/utils/errors";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 const chatSchema = z.object({
   message: z.string().min(1, "message is required").max(1000),
@@ -69,7 +70,7 @@ export function faqById(req: Request, res: Response) {
   const id = Array.isArray(rawId) ? (rawId[0] ?? "") : (rawId ?? "");
   const faq = chatbotService.getFaqById(id);
   if (!faq) {
-    return res.status(404).json({ success: false, message: "FAQ not found" });
+    return res.status(404).json({ success: false, message: MessageUtil.get("FAQ_NOT_FOUND") });
   }
   return res.json({ success: true, data: faq });
 }

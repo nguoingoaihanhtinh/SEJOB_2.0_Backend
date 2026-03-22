@@ -1,6 +1,7 @@
 // src/services/test.service.ts
 import { supabase } from "@/config/supabase";
 import logger from "@/utils/logger";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export const testSupabaseConnection = async () => {
   logger.info("🧪 Testing Supabase connection...");
@@ -14,7 +15,7 @@ export const testSupabaseConnection = async () => {
     }
 
     logger.info(`✅ Supabase connected successfully! Sample data:`, data);
-    return { success: true, message: "Supabase is working", data };
+    return { success: true, message: MessageUtil.get("SUPABASE_IS_WORKING"), data };
   } catch (err: any) {
     logger.error("💥 Unexpected error in test service:", err.message);
     throw err;

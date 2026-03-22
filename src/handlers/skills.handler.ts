@@ -7,6 +7,7 @@ import SkillService from "@/services/skills.service";
 import { createSkillSchema } from "@/dtos/job/CreateSkill.dto";
 import { updateSkillSchema } from "@/dtos/job/UpdateSkill.dto";
 import convert from "@/utils/convert";
+import { MessageUtil } from "@/utils/MessageUtil";
 
 export async function getSkills(req: Request, res: Response) {
   const { page, limit, ids, hasPagination } = req.query;
@@ -29,7 +30,7 @@ export async function getSkill(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   const skill = await SkillService.findOne({ id: _.toNumber(id) });
@@ -56,7 +57,7 @@ export async function createSkill(request: Request, response: Response) {
 export async function updateSkill(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
   request.body.id = _.toNumber(id);
   const skillData = validate.schema_validate(updateSkillSchema, request.body);
@@ -72,7 +73,7 @@ export async function updateSkill(request: Request, response: Response) {
 export async function deleteSkill(request: Request, response: Response) {
   const id = request.params.id;
   if (!id) {
-    throw new BadRequestError({ message: "Missing required param: id" });
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
   }
 
   await SkillService.delete(_.toNumber(id));
