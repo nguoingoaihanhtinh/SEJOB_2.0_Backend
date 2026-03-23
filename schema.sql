@@ -94,6 +94,23 @@ CREATE TABLE skills (
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
+
+CREATE TABLE skill_mappings (
+  id bigserial PRIMARY KEY,
+  skill_name text NOT NULL UNIQUE,          
+  category text,                              
+  synonyms text[] DEFAULT '{}',             
+  related_skills text[] DEFAULT '{}',       
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+
+CREATE INDEX idx_skill_mappings_category ON skill_mappings(category);
+CREATE INDEX idx_skill_mappings_synonyms ON skill_mappings USING GIN(synonyms);
+CREATE INDEX idx_skill_mappings_related ON skill_mappings USING GIN(related_skills);
+
 CREATE TABLE employment_types (
   id bigserial PRIMARY KEY,
   name text NOT NULL,
