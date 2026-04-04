@@ -7,13 +7,15 @@ import levelRepo from "@/repositories/level.repository";
 import employmentTypeRepo from "@/repositories/employment_types.repository";
 import { CreateJobDto } from "@/dtos/job/CreateJob.dto";
 import { UpdateJobDto } from "@/dtos/job/UpdateJob.dto";
-import { Company, Job, JobAfterJoined, JobCategory, JobEmploymentType, JobLevel, JobQueryParams, JobSkill } from "@/types/common";
+import { Company, Job, JobAfterJoined, JobCategory, JobEmploymentType, JobLevel, JobQueryParams, JobSkill, NotificationType } from "@/types/common";
 import companyRepo from "@/repositories/company.repository";
 import companyBranchesRepo from "@/repositories/company_branches.repository";
 import savedJobsRepo from "@/repositories/saved_jobs.repository";
 import { toCamelCaseKeys } from "@/utils/casing";
 import { toTopCvFormat } from "@/utils/topCVFormat";
 import { appEventEmitter, AppEvents } from "@/events/EventEmitter";
+import NotificationService from "@/services/notifications.service";
+import companyService from "./company.service";
 export class JobService {
   async getTotalJobs(input: JobQueryParams) {
     const total = await jobRepository.countFindAll(input);
@@ -289,8 +291,9 @@ export class JobService {
   async update(input: { jobId: number; jobData: UpdateJobDto }) {
     const { jobId, jobData } = input;
 
-    const existing = await jobRepository.findOne(jobId);
-    if (!existing) {
+    const { job } = await jobRepository.findOne(jobId);
+
+    if (!job) {
       throw new NotFoundError({ message: `Job with ID ${jobId} not found` });
     }
 
@@ -315,7 +318,7 @@ export class JobService {
     // Validate relationships if provided
     if (category_ids || required_skill_ids || employment_type_ids || level_ids || company_branches_ids) {
       const { error } = await this.validateUpdate({
-        company_id: existing.job.company_id!,
+        company_id: job.company_id!,
         company_branches_ids,
         category_ids,
         required_skill_ids,
@@ -388,6 +391,24 @@ export class JobService {
 
     if (relationshipPromises.length > 0) {
       await Promise.all(relationshipPromises);
+    }
+
+    if (jobPayload.status && jobPayload.status !== job.status) {
+
+      const company = await companyService.findOne({ company_id: job.company_id });
+
+      if (company.user_id) {
+        await NotificationService.create({
+          data: {
+            title: "Job Status Updated",
+            content: `Your job "${job.title}" has been ${jobPayload.status}.`,
+            type: NotificationType.JobStatusUpdated,
+            status: "sent",
+            receiver_id: company.user_id,
+            sender_id: 1,
+          },
+        });
+      }
     }
 
     return await this.findOne({ jobId });

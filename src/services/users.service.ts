@@ -17,7 +17,7 @@ import certificationsRepository from "@/repositories/certifications.repository";
 import socialLinksRepository from "@/repositories/social_links.repository";
 import experiencesRepository from "@/repositories/experiences.repository";
 import projectsRepository from "@/repositories/projects.repository";
-import NotificationsService from "@/services/notifications.service";
+import NotificationService from "@/services/notifications.service";
 import { supabase } from "@/config/supabase";
 import { MessageUtil } from "@/utils/MessageUtil";
 export class UserService {
@@ -131,7 +131,7 @@ export class UserService {
       });
     }
 
-    await NotificationsService.create({
+    await NotificationService.create({
       data: {
         title: "Welcome to SEJobs!",
         content:
@@ -298,7 +298,7 @@ export class UserService {
       });
     }
 
-    await NotificationsService.create({
+    await NotificationService.create({
       data: {
         title: "Your account has been created!",
         content:
@@ -381,7 +381,7 @@ export class UserService {
       });
     }
 
-    await NotificationsService.create({
+    await NotificationService.create({
       data: {
         title: "Your profile has been updated!",
         content:

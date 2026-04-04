@@ -19,3 +19,35 @@ export async function getNotifications(req: Request, res: Response) {
     pagination,
   });
 }
+
+export async function markAsRead(req: Request, res: Response) {
+  const { id } = req.body;
+
+  const data = await NotificationService.update({
+    query: { ids: [_.toInteger(id)] },
+    data: {
+      is_read: true,
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    data: data,
+  });
+}
+
+export async function markAllAsRead(req: Request, res: Response) {
+  const { receiver_id } = req.body;
+
+  const data = await NotificationService.update({
+    query: { receiver_id: _.toInteger(receiver_id) },
+    data: {
+      is_read: true,
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    data: data,
+  });
+}

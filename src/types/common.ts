@@ -236,6 +236,8 @@ export type JobCompanyBranchesUpdate = Database["public"]["Tables"]["job_company
 export enum NotificationType {
   UserCreated = "user_created",
   UserUpdated = "user_updated",
+
+  JobStatusUpdated = "job_status_updated",
 }
 
 export type Notification = Database["public"]["Tables"]["notifications"]["Row"];

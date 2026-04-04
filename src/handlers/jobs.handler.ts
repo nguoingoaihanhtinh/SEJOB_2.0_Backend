@@ -183,14 +183,15 @@ export async function updateJob(req: Request, res: Response) {
 
   const jobData = validate.schema_validate(updateJobSchema, req.body);
 
-  await jobService.findOne({ jobId: id }).then((job) => {
-    if (!job) {
-      throw new NotFoundError({ message: MessageUtil.get("JOB_NOT_FOUND") });
-    }
-    if (job.status !== jobData.status && req.user?.role !== "Admin" && req.user?.role !== "Manager") {
-      throw new BadRequestError({ message: MessageUtil.get("ONLY_ADMIN_OR_MANAGER_CAN_UPDATE_JOB_STATUS") });
-    }
-  });
+  const job = await jobService.findOne({ jobId: id });
+
+  if (!job) {
+    throw new NotFoundError({ message: MessageUtil.get("JOB_NOT_FOUND") });
+  }
+
+  if (job.status !== jobData.status && req.user?.role !== "Admin" && req.user?.role !== "Manager") {
+    throw new BadRequestError({ message: MessageUtil.get("ONLY_ADMIN_OR_MANAGER_CAN_UPDATE_JOB_STATUS") });
+  }
 
   const updated_job = await jobService.update({ jobId: id, jobData });
 
