@@ -22,6 +22,8 @@ export class NotificationRepository {
       dbQuery = dbQuery.eq("receiver_id", receiver_id);
     }
 
+    dbQuery = dbQuery.order("created_at", { ascending: false });
+
     const executeQuery = hasPagination ? dbQuery.range((page - 1) * limit, page * limit - 1) : dbQuery;
 
     const { data, error, count } = await executeQuery;
@@ -55,10 +57,20 @@ export class NotificationRepository {
     return data;
   }
 
-  async update(id: number, input: NotificationUpdate) {
+  async update(query: NotificationQueryAll, input: NotificationUpdate) {
     const filteredData = _.pickBy(input, (v) => v !== null && v !== undefined && v !== "");
 
-    const { data, error } = await this.db.from("notifications").update(filteredData).eq("id", id).select("id").maybeSingle();
+    let dbQuery = this.db.from("notifications").update(filteredData);
+
+    if (query.receiver_id) {
+      dbQuery = dbQuery.eq("receiver_id", query.receiver_id);
+    }
+    
+    if (query.ids && query.ids.length > 0) {
+      dbQuery = dbQuery.in("id", query.ids);
+    }
+
+    const { data, error } = await dbQuery.select(this.fields);
 
     if (error) throw error;
 

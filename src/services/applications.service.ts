@@ -3,7 +3,7 @@ import { CreateApplicationDTO, UpdateApplicationStatusDTO } from "@/dtos/user/Ap
 import { NotFoundError, ConflictError, BadRequestError } from "@/utils/errors";
 import JobRepository from "@/repositories/job.repository";
 import CompanyRepository from "@/repositories/company.repository";
-import { ApplicationQueryAllParams, ApplicationQueryParams } from "@/types/common";
+import { ApplicationQueryAllParams, ApplicationQueryParams, NotificationType } from "@/types/common";
 import { supabase } from "@/config/supabase";
 import studentRepository from "@/repositories/student.repository";
 import path from "path";
@@ -11,6 +11,8 @@ import { MediaService } from "@/services/media.service";
 import _ from "lodash";
 import ApplicationStatusDetailsRepository from "@/repositories/application_status_details.repository";
 import { MessageUtil } from "@/utils/MessageUtil";
+import companyService from "./company.service";
+import notificationService from "./notifications.service";
 
 function toDatabaseFormat<T extends Record<string, any>>(obj: T): any {
   const result: any = {};
@@ -78,7 +80,32 @@ export const ApplicationService = {
       company_id: job.company_id
     });
 
-    return ApplicationRepository.create(dbPayload);
+    const application = await ApplicationRepository.create(dbPayload);
+
+
+    try {
+      const company = await companyService.findOne({ company_id: job.company_id });
+      
+      if (company.user_id) {
+        await notificationService.create({
+          data: {
+            title: "New Application",
+            content: `You have received a new application for the job "${job.title}".`,
+            type: NotificationType.NewApplication,
+            status: "sent",
+            receiver_id: company.user_id,
+            sender_id: payload.user_id,
+            data: {
+              application_id: application.id,
+            }
+          },
+        });
+      }
+    } catch (error) {
+      console.log(error);
+      // TODO: USING QUEUE
+    }
+    return application;
   },
 
   async update(id: number, payload: UpdateApplicationStatusDTO) {

@@ -60,6 +60,11 @@ export type Database = {
           additional_information: string | null
           company_id: number
           created_at: string
+          cv_analysis: string | null
+          cv_matched_skills: string[] | null
+          cv_missing_requirements: string[] | null
+          cv_score: number | null
+          cv_score_breakdown: Json | null
           email: string
           feedback: string | null
           full_name: string
@@ -85,6 +90,11 @@ export type Database = {
           additional_information?: string | null
           company_id: number
           created_at?: string
+          cv_analysis?: string | null
+          cv_matched_skills?: string[] | null
+          cv_missing_requirements?: string[] | null
+          cv_score?: number | null
+          cv_score_breakdown?: Json | null
           email: string
           feedback?: string | null
           full_name: string
@@ -110,6 +120,11 @@ export type Database = {
           additional_information?: string | null
           company_id?: number
           created_at?: string
+          cv_analysis?: string | null
+          cv_matched_skills?: string[] | null
+          cv_missing_requirements?: string[] | null
+          cv_score?: number | null
+          cv_score_breakdown?: Json | null
           email?: string
           feedback?: string | null
           full_name?: string
@@ -152,6 +167,32 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      candidate_skills: {
+        Row: {
+          candidate_id: number
+          common_skill_id: number
+          id: number
+        }
+        Insert: {
+          candidate_id: number
+          common_skill_id: number
+          id?: number
+        }
+        Update: {
+          candidate_id?: number
+          common_skill_id?: number
+          id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_skills_common_skill_id_fkey"
+            columns: ["common_skill_id"]
+            isOneToOne: false
+            referencedRelation: "common_skills"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -219,6 +260,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      common_skills: {
+        Row: {
+          category: string | null
+          id: number
+          name: string
+        }
+        Insert: {
+          category?: string | null
+          id?: number
+          name: string
+        }
+        Update: {
+          category?: string | null
+          id?: number
+          name?: string
+        }
+        Relationships: []
       }
       companies: {
         Row: {
@@ -1003,6 +1062,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          data: Json | null
           id: number
           is_read: boolean
           receiver_id: number
@@ -1016,6 +1076,7 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string
+          data?: Json | null
           id?: number
           is_read?: boolean
           receiver_id: number
@@ -1029,6 +1090,7 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          data?: Json | null
           id?: number
           is_read?: boolean
           receiver_id?: number
@@ -1208,6 +1270,39 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      skill_mappings: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          id: number
+          is_active: boolean | null
+          related_skills: string[] | null
+          skill_name: string
+          synonyms: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          related_skills?: string[] | null
+          skill_name: string
+          synonyms?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          related_skills?: string[] | null
+          skill_name?: string
+          synonyms?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       skills: {
         Row: {
@@ -1407,12 +1502,19 @@ export type Database = {
         Returns: {
           additional_information: string
           company: Json
+          company_id: number
           created_at: string
+          cv_analysis: string
+          cv_matched_skills: string[]
+          cv_missing_requirements: string[]
+          cv_score: number
+          cv_score_breakdown: Json
           email: string
           feedback: string
           full_name: string
           id: number
           job: Json
+          job_id: number
           linkedin_url: string
           phone: string
           portfolio_url: string
@@ -1420,6 +1522,7 @@ export type Database = {
           resume_url: string
           reviewed_at: string
           status: Database["public"]["Enums"]["applicationstatus"]
+          student: Json
           submitted_at: string
           updated_at: string
           user_id: number
@@ -1428,6 +1531,10 @@ export type Database = {
       get_company_statistics: {
         Args: { company_id_param: number; year_param?: number }
         Returns: Json
+      }
+      match_cv_score: {
+        Args: { search_keywords: string; target_job_id: number }
+        Returns: number
       }
       search_application: {
         Args: {
@@ -1443,13 +1550,19 @@ export type Database = {
         }
         Returns: {
           additional_information: string
-          company: Json
+          company_id: number
           created_at: string
+          cv_analysis: string
+          cv_matched_skills: string[]
+          cv_missing_requirements: string[]
+          cv_score: number
+          cv_score_breakdown: Json
           email: string
           feedback: string
           full_name: string
           id: number
           job: Json
+          job_id: number
           linkedin_url: string
           phone: string
           portfolio_url: string
@@ -1457,6 +1570,7 @@ export type Database = {
           resume_url: string
           reviewed_at: string
           status: Database["public"]["Enums"]["applicationstatus"]
+          student: Json
           submitted_at: string
           total: number
           updated_at: string

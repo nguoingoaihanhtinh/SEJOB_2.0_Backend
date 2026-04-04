@@ -1,5 +1,5 @@
 import notificationRepository from "@/repositories/notifications.repository";
-import { NotificationInsert, NotificationQueryAll, NotificationType } from "@/types/common";
+import { NotificationInsert, NotificationQueryAll, NotificationType, NotificationUpdate } from "@/types/common";
 import { BadRequestError } from "@/utils/errors";
 import validate from "@/utils/validate";
 import _ from "lodash";
@@ -12,6 +12,10 @@ export class NotificationService {
 
   async findOne(input: { id: number }) {
     return await notificationRepository.findOne(input.id);
+  }
+
+  async update(input: { query: NotificationQueryAll, data: NotificationUpdate }) {
+    return await notificationRepository.update(input.query, input.data);
   }
 
   async create(input: { data: NotificationInsert }) {
