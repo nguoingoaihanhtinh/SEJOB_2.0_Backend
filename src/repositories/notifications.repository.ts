@@ -5,7 +5,7 @@ import { NotificationInsert, NotificationQueryAll, NotificationUpdate } from "@/
 
 export class NotificationRepository {
   private readonly db: SupabaseClient;
-  public readonly fields = "id, type, title, content, sender_id, receiver_id, status, is_read, sent_at, created_at, updated_at";
+  public readonly fields = "id, type, title, content, sender_id, receiver_id, data, status, is_read, sent_at, created_at, updated_at";
 
   constructor() {
     this.db = supabase;
