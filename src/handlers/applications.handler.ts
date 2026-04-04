@@ -86,6 +86,12 @@ export async function createApplication(req: Request, res: Response) {
   };
 
   const created = await ApplicationService.create(applicationData);
+
+  // Trigger scoring in the background so it's ready when the employer views the list
+  cvScoringService.scoreApplication(created.id).catch((err) => {
+    console.error(`Background scoring failed for application ${created.id}:`, err.message);
+  });
+
   res.status(201).json({ success: true, data: created });
 }
 
@@ -203,6 +209,7 @@ export async function scoreApplication(req: Request, res: Response) {
     throw new BadRequestError({ message: MessageUtil.get("INVALID_APPLICATION_ID") });
   }
 
-  const scoreResult = await cvScoringService.scoreApplication(id);
+  const forceRefresh = req.query.forceRefresh === 'true';
+  const scoreResult = await cvScoringService.scoreApplication(id, forceRefresh);
   res.status(200).json({ success: true, data: scoreResult });
 }

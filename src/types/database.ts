@@ -75,6 +75,11 @@ export type Database = {
           submitted_at: string
           updated_at: string
           user_id: number
+          cv_score: number | null
+          cv_matched_skills: string[] | null
+          cv_missing_requirements: string[] | null
+          cv_analysis: string | null
+          cv_score_breakdown: Json | null
         }
         Insert: {
           additional_information?: string | null
@@ -95,6 +100,11 @@ export type Database = {
           submitted_at?: string
           updated_at?: string
           user_id: number
+          cv_score?: number | null
+          cv_matched_skills?: string[] | null
+          cv_missing_requirements?: string[] | null
+          cv_analysis?: string | null
+          cv_score_breakdown?: Json | null
         }
         Update: {
           additional_information?: string | null
@@ -115,6 +125,11 @@ export type Database = {
           submitted_at?: string
           updated_at?: string
           user_id?: number
+          cv_score?: number | null
+          cv_matched_skills?: string[] | null
+          cv_missing_requirements?: string[] | null
+          cv_analysis?: string | null
+          cv_score_breakdown?: Json | null
         }
         Relationships: [
           {
