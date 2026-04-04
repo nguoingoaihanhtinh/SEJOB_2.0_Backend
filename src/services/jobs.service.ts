@@ -394,20 +394,24 @@ export class JobService {
     }
 
     if (jobPayload.status && jobPayload.status !== job.status) {
-
-      const company = await companyService.findOne({ company_id: job.company_id });
-
-      if (company.user_id) {
-        await NotificationService.create({
-          data: {
-            title: "Job Status Updated",
-            content: `Your job "${job.title}" has been ${jobPayload.status}.`,
-            type: NotificationType.JobStatusUpdated,
-            status: "sent",
-            receiver_id: company.user_id,
-            sender_id: 1,
-          },
-        });
+      try {
+        const company = await companyService.findOne({ company_id: job.company_id });
+  
+        if (company.user_id) {
+          await NotificationService.create({
+            data: {
+              title: "Job Status Updated",
+              content: `Your job "${job.title}" has been ${jobPayload.status}.`,
+              type: NotificationType.JobStatusUpdated,
+              status: "sent",
+              receiver_id: company.user_id,
+              sender_id: 1,
+            },
+          });
+        }
+      } catch (error) {
+        console.log(error);
+        // TODO: USING QUEUE        
       }
     }
 
