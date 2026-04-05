@@ -239,6 +239,7 @@ export enum NotificationType {
 
   JobStatusUpdated = "job_status_updated",
   NewApplication = "new_application",
+  ApplicationStatusUpdated = "application_status_updated",
 }
 
 export type Notification = Database["public"]["Tables"]["notifications"]["Row"];

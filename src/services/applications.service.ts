@@ -2,7 +2,6 @@ import ApplicationRepository from "@/repositories/application.repository";
 import { CreateApplicationDTO, UpdateApplicationStatusDTO } from "@/dtos/user/Application.dto";
 import { NotFoundError, ConflictError, BadRequestError } from "@/utils/errors";
 import JobRepository from "@/repositories/job.repository";
-import CompanyRepository from "@/repositories/company.repository";
 import { ApplicationQueryAllParams, ApplicationQueryParams, NotificationType } from "@/types/common";
 import { supabase } from "@/config/supabase";
 import studentRepository from "@/repositories/student.repository";
@@ -13,6 +12,7 @@ import ApplicationStatusDetailsRepository from "@/repositories/application_statu
 import { MessageUtil } from "@/utils/MessageUtil";
 import companyService from "./company.service";
 import notificationService from "./notifications.service";
+import jobService from "@/services/jobs.service";
 
 function toDatabaseFormat<T extends Record<string, any>>(obj: T): any {
   const result: any = {};
@@ -151,13 +151,35 @@ export const ApplicationService = {
       }
     }
 
-    const result = await ApplicationRepository.findOne({ id });
+    const application = await ApplicationRepository.findOne({ id });
 
-    if (!result) {
+    if (!application) {
       throw new NotFoundError({ message: MessageUtil.get("APPLICATION_NOT_FOUND_AFTER_UPDATE") });
     }
 
-    return result;
+    if (payload.status) {
+      try {
+        const job = await jobService.findOne({ jobId: application.job_id });
+        await notificationService.create({
+          data: {
+            title: "Application Updated",
+            content: `Employer updated your application for the job "${job.title}" to "${application.status}".`,
+            type: NotificationType.ApplicationStatusUpdated,
+            status: "sent",
+            receiver_id: application.user_id,
+            sender_id: application.company_id,
+            data: {
+              application_id: application.id,
+            }
+          },
+        });
+      } catch (error) {
+        console.log(error);
+        // TODO: USING QUEUE
+      }
+    }
+
+    return application;
   },
 
   async delete(id: number) {
