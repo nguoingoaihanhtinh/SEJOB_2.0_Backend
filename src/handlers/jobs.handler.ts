@@ -43,6 +43,7 @@ function parseJobQueryParams(query: any, includePagination = true) {
     province_ids = convert.split(query.province_ids as string, ",", Number).filter((id) => !isNaN(id));
   }
 
+  const job_ids = convert.split(query.job_ids as string, ",", Number).filter((id) => !isNaN(id));
   const level_ids = convert.split(query.level_ids as string, ",", Number).filter((id) => !isNaN(id));
   const skill_ids = convert.split(query.skill_ids as string, ",", Number).filter((id) => !isNaN(id));
   const employment_type_ids = convert
@@ -56,6 +57,7 @@ function parseJobQueryParams(query: any, includePagination = true) {
     : undefined;
 
   const queryParams: any = {
+    job_ids,
     province_ids,
     level_ids,
     category_ids,

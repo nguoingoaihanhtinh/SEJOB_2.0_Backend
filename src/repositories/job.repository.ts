@@ -19,6 +19,7 @@ export class JobRepository {
   async countFindAll(input: JobQueryParams) {
     const { data, error } = await this.db.rpc("search_job", {
       q_keyword: _.get(input, "keyword") || null,
+      q_job_ids: convert.normalizeArray(input.job_ids),
       q_company_id: _.get(input, "company_id") ?? null,
       q_province_ids: convert.normalizeArray(input.province_ids),
       q_level_ids: convert.normalizeArray(input.level_ids),
@@ -47,6 +48,7 @@ export class JobRepository {
       q_keyword: _.get(input, "keyword") || null,
       q_company_id: _.get(input, "company_id") ?? null,
       q_province_ids: convert.normalizeArray(input.province_ids),
+      q_job_ids: convert.normalizeArray(input.job_ids),
       q_level_ids: convert.normalizeArray(input.level_ids),
       q_category_ids: convert.normalizeArray(input.category_ids),
       q_skill_ids: convert.normalizeArray(input.skill_ids),

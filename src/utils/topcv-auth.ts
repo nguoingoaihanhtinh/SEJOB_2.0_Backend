@@ -15,7 +15,7 @@ export async function getTopCVAccessToken(): Promise<string | null> {
         email: process.env.TOPCV_SCHOOL_EMAIL,
         password: process.env.TOPCV_SCHOOL_PASSWORD,
       },
-      { timeout: 5000 },
+      { timeout: 1000 },
     );
 
     const { data } = response;
