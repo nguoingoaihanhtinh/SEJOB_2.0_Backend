@@ -1,16 +1,15 @@
 import OpenAI from "openai";
+import { getOpenAI, getModel } from "@/utils/openai";
 import studentRepository from "@/repositories/student.repository";
 import { supabase } from "@/config/supabase";
 
-let openai: OpenAI | null = null;
-if (process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-}
+
 
 export class TopicSuggestionService {
     async suggestTopics(userId: number) {
+        const openai = getOpenAI();
         if (!openai) {
-            throw new Error("OpenAI is not configured");
+            throw new Error("OpenAI/OpenRouter is not configured");
         }
 
         const student = await studentRepository.findByUserId(userId);
@@ -47,7 +46,7 @@ Past Experience: ${experiences.map(e => e.position).join(", ")}
 
         try {
             const response = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
+                model: getModel(),
                 messages: [{ role: "user", content: prompt }],
                 response_format: { type: "json_object" },
                 temperature: 0.7,

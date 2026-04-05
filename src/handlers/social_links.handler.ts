@@ -76,7 +76,7 @@ export async function listSocialLinks(req: Request, res: Response) {
 
   const student = await studentRepository.findOne({ user_id: userId });
   if (!student || student.id == null) {
-    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
+    return res.status(200).json({ success: true, data: [] });
   }
 
   const data = await socialLinkService.list({ student_id: student.id, userId });
@@ -88,7 +88,7 @@ export async function getSocialLink(req: Request, res: Response) {
 
   const student = await studentRepository.findOne({ user_id: _.toNumber(userId) });
   if (!student || student.id == null) {
-    throw new BadRequestError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
+    return res.status(200).json({ success: true, data: null });
   }
 
   const data = await socialLinkService.findOne({

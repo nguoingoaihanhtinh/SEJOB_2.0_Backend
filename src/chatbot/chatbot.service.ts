@@ -1,5 +1,6 @@
 import natural from "natural";
 import OpenAI from "openai";
+import { getOpenAI, getModel } from "@/utils/openai";
 import { FAQ_DB } from "./chatbot.faq";
 import { FAQ, ChatRequest, ChatResponse, SuggestedQuestion, SuggestionsRequest, UserRole } from "./chatbot.types";
 import logger from "@/utils/logger";
@@ -14,11 +15,7 @@ const MATCH_THRESHOLD = 0.18;
 /** Max quick-option chips returned */
 const MAX_SUGGESTIONS = 5;
 
-// ─── OpenAI setup (optional – gracefully degrades when key is absent) ─────────
-let openai: OpenAI | null = null;
-if (process.env.OPENAI_API_KEY) {
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-}
+
 
 // ─── NLP helpers ─────────────────────────────────────────────────────────────
 
@@ -126,6 +123,7 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
   }
 
   // 2. AI fallback
+  const openai = getOpenAI();
   if (openai) {
     try {
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -138,7 +136,7 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
       ];
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: getModel(),
         messages,
         max_tokens: 400,
         temperature: 0.4,
