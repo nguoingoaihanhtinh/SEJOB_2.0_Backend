@@ -31,6 +31,15 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
       });
     }
     const decoded = verifyToken(token);
+    const { default: userRepository } = await import("@/repositories/user.repository");
+    const user = await userRepository.findOne({ user_id: decoded.userId, fields: "user_id, is_active" });
+    
+    if (!user || user.is_active === false) {
+      throw new UnauthorizedError({
+        message: MessageUtil.get("ACCOUNT_IS_DEACTIVATED"),
+        status: "ACCOUNT_DEACTIVATED",
+      });
+    }
     req.user = decoded;
     next();
   } catch (error) {

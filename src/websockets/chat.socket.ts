@@ -55,6 +55,13 @@ export function initSocketServer(httpServer: HttpServer) {
     
     try {
       const decoded = verifyToken(token);
+      const { default: userRepository } = await import("../repositories/user.repository");
+      const user = await userRepository.findOne({ user_id: decoded.userId, fields: "user_id, is_active" });
+      
+      if (!user || user.is_active === false) {
+        logger.warn(`Socket auth failed: user ${decoded.userId} is inactive`);
+        return next(new Error("Account is deactivated"));
+      }
       socket.data.user = decoded;
       next();
     } catch (err) {
@@ -63,20 +70,23 @@ export function initSocketServer(httpServer: HttpServer) {
     }
   });
 
+  const onlineUsers = new Map<number, Set<string>>();
   io.on("connection", (socket: Socket) => {
     const userId = socket.data.user.userId;
     logger.info(`🔌 User connected to chat socket: ${userId}`);
     console.log(`Socket user ${userId} joining room user_${userId}`);
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
+    }
+    onlineUsers.get(userId)?.add(socket.id);
 
+    io.emit("online_users", Array.from(onlineUsers.keys()));
     // Join a room specifically for this user to receive messages
     const roomName = `user_${userId}`;
     socket.join(roomName);
-    console.log(`Socket ${socket.id} joined room ${roomName}. Current rooms:`, Array.from(socket.rooms));
 
     // Send Message Event
     socket.on("send_message", async (payload: ChatMessagePayload) => {
-      logger.info(`Message received from ${userId} to ${payload.receiverId} in conv ${payload.conversationId}`);
-      console.log("📥 Received message payload:", payload);
       try {
         // Save to Database
         const { data: msg, error } = await supabase
