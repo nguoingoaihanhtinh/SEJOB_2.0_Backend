@@ -18,7 +18,7 @@ export const ReviewHandler = {
 
   async create(req: Request, res: Response) {
     const validated = createReviewSchema.parse(req.body);
-    const reviewer_id = (req as any).user.user_id;
+    const reviewer_id = (req as any).user.userId;
 
     const review = await ReviewService.create({
       ...validated,

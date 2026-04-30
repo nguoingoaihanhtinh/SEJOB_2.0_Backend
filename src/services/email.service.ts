@@ -213,6 +213,35 @@ class EmailTemplates {
     `;
     return this.baseTemplate(content);
   }
+  static genericNotification(params: {
+    title: string;
+    content: string;
+    actionUrl?: string;
+    actionText?: string;
+  }): string {
+    const content = `
+      <h2 style="color: #1976d2; margin-bottom: 20px;">${params.title}</h2>
+      <p style="color: #333; font-size: 16px; line-height: 1.6;">${params.content}</p>
+      
+      ${params.actionUrl ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${params.actionUrl}" 
+             style="
+               display: inline-block; 
+               background-color: #10b981; 
+               color: white; 
+               padding: 12px 30px; 
+               text-decoration: none; 
+               border-radius: 6px; 
+               font-weight: 600;
+             ">
+            ${params.actionText || 'Xem chi tiết'}
+          </a>
+        </div>
+      ` : ''}
+    `;
+    return this.baseTemplate(content);
+  }
 }
 
 export class EmailService {
@@ -242,19 +271,33 @@ export class EmailService {
           console.log(`✅ ${logPrefix} thành công: ${to}`);
         } catch (error) {
           console.error(`❌ Lỗi ${logPrefix}:`, error);
-
           console.warn(`⚠️ Email failed but app continues`);
         }
       } else {
         console.log(`📧 [EMAIL MOCK] ${logPrefix} → ${to}`);
         console.log(`📧 Subject: ${subject}`);
-        if (process.env.NODE_ENV === "development") {
-          console.log(`📧 HTML preview: ${html.substring(0, 200)}...`);
-        }
       }
     } catch (error) {
       console.error(`❌ Email service error:`, error);
     }
+  }
+
+  /**
+   * Send generic notification email
+   */
+  static async sendNotificationEmail(input: {
+    email: string;
+    title: string;
+    content: string;
+    actionUrl?: string;
+    actionText?: string;
+  }): Promise<void> {
+    await this.sendEmail({
+      to: input.email,
+      subject: input.title,
+      html: EmailTemplates.genericNotification(input),
+      logPrefix: "Gửi thông báo",
+    });
   }
 
   /**

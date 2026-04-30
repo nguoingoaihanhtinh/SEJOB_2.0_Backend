@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     let token: string | undefined;
 
@@ -31,15 +31,18 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
       });
     }
     const decoded = verifyToken(token);
+
+    // Check if user is still active in DB
     const { default: userRepository } = await import("@/repositories/user.repository");
     const user = await userRepository.findOne({ user_id: decoded.userId, fields: "user_id, is_active" });
-    
+
     if (!user || user.is_active === false) {
       throw new UnauthorizedError({
         message: MessageUtil.get("ACCOUNT_IS_DEACTIVATED"),
         status: "ACCOUNT_DEACTIVATED",
       });
     }
+
     req.user = decoded;
     next();
   } catch (error) {
