@@ -1,12 +1,17 @@
-import OpenAI from "openai";
 import { getOpenAI, getModel } from "@/utils/openai";
 import jobRepository from "@/repositories/job.repository";
 import studentRepository from "@/repositories/student.repository";
 import applicationRepository from "@/repositories/application.repository";
 import { supabase } from "@/config/supabase";
 import skillMappingService from "@/services/skill_mapping.service";
-import axios from "axios";
-const pdfParse = require("pdf-parse");
+import { recoverTruncatedJson } from "@/utils/json-recovery";
+import { downloadAndParseCv } from "@/utils/cv-parser";
+import { 
+  ScoringWeights, 
+  getDynamicWeights, 
+  verifyWeights, 
+  DEFAULT_WEIGHTS 
+} from "@/config/scoring-weights";
 
 const clamp = (value: number, max: number, min: number = 0): number => Math.min(Math.max(value, min), max);
 
@@ -15,184 +20,10 @@ function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function recoverTruncatedJson(raw: string): any {
-  // console.log(`[recoverTruncatedJson] Raw input (first 500 chars): ${raw.substring(0, 500)}`);
-
-  // Step 1: Strip markdown fences
-  let s = raw
-    .replace(/^```(?:json)?[^\n]*\n?/i, "")
-    .replace(/\n?```\s*$/i, "")
-    .trim();
-
-  // console.log(`[recoverTruncatedJson] After fence strip (first 500 chars): ${s.substring(0, 500)}`);
-
-  // Step 2: Try parsing as-is first
-  try {
-    const match = s.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-  } catch (e: any) {
-    // console.log(`[recoverTruncatedJson] Initial parse failed: ${e.message}`);
-  }
-
-  // Step 3: Recovery — fix common truncation issues
-  // Remove trailing commas
-  s = s.replace(/,\s*$/, "");
-  // Fix hanging key with no value: "key": } or "key":\n}
-  s = s.replace(/:\s*([,}\]])/g, ": null$1");
-  // Fix hanging key at end of string: "key":
-  s = s.replace(/:\s*$/, ": null");
-  // Close unclosed arrays
-  const openBrackets = (s.match(/\[/g) || []).length;
-  const closeBrackets = (s.match(/\]/g) || []).length;
-  for (let i = 0; i < openBrackets - closeBrackets; i++) s += "]";
-  // Close unclosed objects
-  const openBraces = (s.match(/\{/g) || []).length;
-  const closeBraces = (s.match(/\}/g) || []).length;
-  for (let i = 0; i < openBraces - closeBraces; i++) s += "}";
-  // Remove trailing commas before ] or }
-  s = s.replace(/,\s*([}\]])/g, "$1");
-
-  // console.log(`[recoverTruncatedJson] After recovery (first 500 chars): ${s.substring(0, 500)}`);
-
-  try {
-    const match = s.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-  } catch (e: any) {
-    // console.log(`[recoverTruncatedJson] Recovery parse also failed: ${e.message}`);
-  }
-
-  console.warn("[recoverTruncatedJson] All recovery attempts failed. Returning empty object.");
-  return {};
-}
-
-/**
- * Scoring weights configuration.
- *
- * B2 (Course Mapping) is temporarily 0 because student_courses and
- * course_job_mappings tables don't exist yet. The 15 points are redistributed:
- * - A1: +7 (25 → 32)
- * - C2: +5 (10 → 15)
- * - D: +3 (10 → 13)
- *
- * When a student has 0 projects, the entire C category (25 points) is
- * redistributed to A1 (+10), B1 (+10), and E (+5) via getDynamicWeights().
- */
-interface ScoringWeights {
-  A1_REQUIRED: number;
-  A2_NICE: number;
-  A3_SKILL_DEPTH: number;
-  B1_MAJOR: number;
-  B2_COURSES: number;
-  C1_PROJECT_COUNT: number;
-  C2_PROJECT_RELEVANCE: number;
-  C3_PROJECT_COMPLEXITY: number;
-  D_CERTIFICATIONS: number;
-  E_EXPERIENCE: number;
-}
-
-/**
- * Scoring weights configuration according to Issue #6.
- *
- * When a student has 0 projects, the entire C category (20 points: C1=5, C2=10, C3=5) is
- * redistributed to A1 (+10), B1 (+5), and E (+5) via getDynamicWeights().
- */
-interface ScoringWeights {
-  A1_REQUIRED: number;
-  A2_NICE: number;
-  A3_SKILL_DEPTH: number;
-  B1_MAJOR: number;
-  B2_COURSES: number;
-  C1_PROJECT_COUNT: number;
-  C2_PROJECT_RELEVANCE: number;
-  C3_PROJECT_COMPLEXITY: number;
-  D_CERTIFICATIONS: number;
-  E_EXPERIENCE: number;
-}
-
-const DEFAULT_WEIGHTS: ScoringWeights = {
-  A1_REQUIRED: 30,
-  A2_NICE: 10,
-  A3_SKILL_DEPTH: 5,
-  B1_MAJOR: 10,
-  B2_COURSES: 15,
-  C1_PROJECT_COUNT: 5,
-  C2_PROJECT_RELEVANCE: 10,
-  C3_PROJECT_COMPLEXITY: 5,
-  D_CERTIFICATIONS: 5,
-  E_EXPERIENCE: 5,
-};
-
-//When a student has 0 projects, the entire C category (20 points) is redistributed to A1 (+10), B1 (+5), and E (+5). This ensures the total always equals 100 without awarding "free" points.
-
-function getDynamicWeights(hasProjects: boolean): ScoringWeights {
-  if (hasProjects) {
-    return { ...DEFAULT_WEIGHTS };
-  }
-
-  // 0 projects: redistribute C (5+10+5=20) to A1/B1/E
-  return {
-    ...DEFAULT_WEIGHTS,
-    A1_REQUIRED: DEFAULT_WEIGHTS.A1_REQUIRED + 10,
-    B1_MAJOR: DEFAULT_WEIGHTS.B1_MAJOR + 5,
-    E_EXPERIENCE: DEFAULT_WEIGHTS.E_EXPERIENCE + 5,
-    C1_PROJECT_COUNT: 0,
-    C2_PROJECT_RELEVANCE: 0,
-    C3_PROJECT_COMPLEXITY: 0,
-  };
-}
-
-function verifyWeights(weights: ScoringWeights): void {
-  const total =
-    weights.A1_REQUIRED +
-    weights.A2_NICE +
-    weights.A3_SKILL_DEPTH +
-    weights.B1_MAJOR +
-    weights.B2_COURSES +
-    weights.C1_PROJECT_COUNT +
-    weights.C2_PROJECT_RELEVANCE +
-    weights.C3_PROJECT_COMPLEXITY +
-    weights.D_CERTIFICATIONS +
-    weights.E_EXPERIENCE;
-
-  if (total !== 100) {
-    throw new Error(`Weight total is ${total}, expected 100!`);
-  }
-}
-
 // ============================================================================
-// PDF PARSING HELPER
+// CV SCORING SERVICE
 // ============================================================================
 
-/**
- * Robust helper to download and parse PDF/Text with fallback to OCR
- */
-async function downloadAndParseCv(url: string): Promise<string> {
-  try {
-    const response = await axios.get(url, { responseType: "arraybuffer" });
-    const dataBuffer = Buffer.from(response.data);
-    const pdfData = await pdfParse(dataBuffer);
-    let text = pdfData.text || "";
-
-    // Fallback Strategy: If PDF is an image (no text), use OCR.space Free API
-    if (text.trim().length < 50 && url.startsWith("http")) {
-      try {
-        // console.log("PDF appears to be an image. Booting OCR.space fallback...");
-        const ocrUrl = `https://api.ocr.space/parse/imageurl?apikey=helloworld&url=${encodeURIComponent(url)}&language=eng&isOverlayRequired=false`;
-        const ocrRes = await axios.get(ocrUrl);
-        if (ocrRes.data && ocrRes.data.ParsedResults && ocrRes.data.ParsedResults.length > 0) {
-          text = ocrRes.data.ParsedResults.map((r: any) => r.ParsedText).join("\n") || "";
-          //   console.log("OCR successfully recovered missing text! Extracted characters:", text.length);
-        }
-      } catch (ocrErr: any) {
-        console.warn("OCR.space fallback failed:", ocrErr.message);
-      }
-    }
-    return text;
-  } catch (err: any) {
-    console.warn(`Failed to parse PDF from ${url}:`, err.message);
-    return "";
-  }
-}
 
 export class CvScoringService {
   /**
@@ -384,47 +215,41 @@ export class CvScoringService {
    */
   private scoreMajor(educations: any[], maxScore: number): { score: number; reason: string } {
     const itMajors = [
-      "công nghệ thông tin",
-      "khoa học máy tính",
-      "kỹ thuật phần mềm",
-      "hệ thống thông tin",
-      "an toàn thông tin",
-      "mạng máy tính",
-      "computer science",
-      "software engineering",
-      "information technology",
-      "information systems",
-      "cybersecurity",
-      "data science",
+      "công nghệ thông tin", "khoa học máy tính", "kỹ thuật phần mềm", 
+      "hệ thống thông tin", "an toàn thông tin", "mạng máy tính", 
+      "truyền thông đa phương tiện", "trí tuệ nhân tạo", "khoa học dữ liệu",
+      "computer science", "software engineering", "information technology", 
+      "information systems", "cybersecurity", "data science", "artificial intelligence",
+      "computer engineering", "web development", "mobile development", "cloud computing",
+      "software engineer", "it engineer", "cs engineer", "se engineer", "mis", "ict"
     ];
 
     const relatedMajors = [
-      "toán tin",
-      "toán ứng dụng",
-      "điện tử",
-      "viễn thông",
-      "kỹ thuật điện",
-      "kỹ thuật điều khiển",
-      "applied mathematics",
-      "electronics",
-      "telecommunications",
-      "electrical engineering",
+      "toán tin", "toán ứng dụng", "điện tử", "viễn thông", "kỹ thuật điện", 
+      "kỹ thuật điều khiển", "tự động hóa", "cơ điện tử", "vật lý tin học",
+      "applied mathematics", "electronics", "telecommunications", 
+      "electrical engineering", "mechatronics", "automation", "physics",
+      "business information systems", "digital marketing", "management information systems"
     ];
 
     for (const edu of educations) {
-      const eduText = JSON.stringify(edu).toLowerCase();
+      const field = (edu.field_of_study || "").toLowerCase().trim();
+      const degree = (edu.degree || "").toLowerCase().trim();
+      const combined = `${degree} ${field}`.trim();
 
-      if (itMajors.some((kw) => eduText.includes(kw))) {
+      if (!combined) continue;
+
+      if (itMajors.some((kw) => combined.includes(kw))) {
         return {
           score: maxScore,
-          reason: `IT major: "${edu.degree || ""} - ${edu.field_of_study || ""}"`,
+          reason: `IT major: "${edu.degree || "Degree"} in ${edu.field_of_study || "Field"}"`,
         };
       }
 
-      if (relatedMajors.some((kw) => eduText.includes(kw))) {
+      if (relatedMajors.some((kw) => combined.includes(kw))) {
         return {
           score: Math.round(maxScore * 0.6),
-          reason: `Related field: "${edu.degree || ""} - ${edu.field_of_study || ""}"`,
+          reason: `Related field: "${edu.degree || "Degree"} in ${edu.field_of_study || "Field"}"`,
         };
       }
     }
@@ -570,36 +395,18 @@ export class CvScoringService {
   private scoreProjectComplexity(projects: any[], maxScore: number): number {
     if (!projects || projects.length === 0) return 0;
 
-    const complexityKeywords = [
-      "deploy",
-      "production",
-      "live",
-      "rest api",
-      "api",
-      "microservice",
-      "ci/cd",
-      "pipeline",
-      "docker",
-      "kubernetes",
-      "aws",
-      "azure",
-      "gcp",
-      "team",
-      "collaborate",
-      "agile",
-      "scrum",
-      "github",
-      "git",
-      "database",
-      "postgresql",
-      "mongodb",
-      "redis",
-      "authentication",
-      "authorization",
-      "oauth",
-      "jwt",
-      "payment",
-      "stripe",
+    const highComplexityKeywords = [
+      "microservice", "distributed system", "kubernetes", "k8s", "docker swarm",
+      "aws lambda", "serverless", "ci/cd", "jenkins", "github actions",
+      "elasticsearch", "kafka", "rabbitmq", "redis cluster", "grpc", "graphql",
+      "blockchain", "smart contract", "machine learning", "deep learning", "tensorflow",
+      "pytorch", "pwa", "web sockets", "real-time", "high availability", "scalability"
+    ];
+
+    const midComplexityKeywords = [
+      "deploy", "production", "live", "rest api", "api", "docker", "aws", "azure", 
+      "gcp", "postgresql", "mongodb", "redis", "authentication", "authorization", 
+      "oauth", "jwt", "payment", "stripe", "unit test", "integration test"
     ];
 
     const basicKeywords = ["exercise", "tutorial", "homework", "assignment", "lab", "practice"];
@@ -609,16 +416,16 @@ export class CvScoringService {
       .join(" ")
       .toLowerCase();
 
-    const hasAdvancedKeywords = complexityKeywords.some((kw) => projectText.includes(kw));
-    const hasBasicKeywords = basicKeywords.some((kw) => projectText.includes(kw));
+    const hasHigh = highComplexityKeywords.some((kw) => projectText.includes(kw));
+    const hasMid = midComplexityKeywords.some((kw) => projectText.includes(kw));
+    const hasBasic = basicKeywords.some((kw) => projectText.includes(kw));
 
-    if (hasAdvancedKeywords) {
-      return maxScore;
-    } else if (hasBasicKeywords) {
-      return 2;
-    } else if (projects.some((p) => p.description && p.description.trim().length > 0)) {
-      return 3;
-    }
+    if (hasHigh) return maxScore;
+    if (hasMid) return Math.round(maxScore * 0.8);
+    if (hasBasic) return Math.round(maxScore * 0.4);
+    
+    if (projects.some((p) => (p.description || "").trim().length > 50)) return Math.round(maxScore * 0.6);
+    
     return 0;
   }
 
@@ -635,27 +442,36 @@ export class CvScoringService {
     if (!certifications || certifications.length === 0) return 0;
 
     let certScore = 0;
+    const combinedRequirements = [...jobRequirements, ...jobSkillNames].map(r => r.toLowerCase());
 
     for (const cert of certifications) {
-      const certText = `${cert.name} ${cert.organization} ${cert.description || ""}`.toLowerCase();
+      const certName = (cert.name || "").toLowerCase();
+      const certOrg = (cert.organization || "").toLowerCase();
+      const certText = `${certName} ${certOrg} ${cert.description || ""}`.toLowerCase();
 
-      // Direct match
-      if (
-        jobRequirements.some((req) => cert.name.toLowerCase().includes(req.toLowerCase())) ||
-        jobSkillNames.some((skill) => cert.name.toLowerCase().includes(skill.toLowerCase()))
-      ) {
+      // Priority 1: Direct match in certification name
+      const directMatch = combinedRequirements.some(req => certName.includes(req));
+      if (directMatch) {
         certScore = maxScore;
-        break; // max score achieved, stop checking
+        break;
       }
 
-      // Indirect match
-      if (
-        jobRequirements.concat(jobSkillNames).some((req) => {
-          if (req.length <= 4) return false; // avoid noise from short acronyms
-          return certText.includes(req.toLowerCase());
-        })
-      ) {
-        certScore = Math.max(certScore, Math.round(maxScore * 0.5)); // Half points
+      // Priority 2: Famous IT Cert Organizations match
+      const famousOrgs = ["aws", "microsoft", "google", "oracle", "cisco", "red hat", "comptia", "isc2"];
+      const isFamousOrg = famousOrgs.some(org => certOrg.includes(org) || certName.includes(org));
+      
+      if (isFamousOrg) {
+        certScore = Math.max(certScore, Math.round(maxScore * 0.8));
+      }
+
+      // Priority 3: Indirect match in description
+      const indirectMatch = combinedRequirements.some(req => {
+        if (req.length <= 4) return false;
+        return certText.includes(req);
+      });
+      
+      if (indirectMatch) {
+        certScore = Math.max(certScore, Math.round(maxScore * 0.5));
       }
     }
 
@@ -675,36 +491,43 @@ export class CvScoringService {
     if (!job.title) return { score: 0, details: "Missing job title" };
 
     const prompt = `
-You are evaluating how relevant a candidate's projects are to a job opening.
+You are a senior technical recruiter evaluating how relevant a candidate's projects are to a specific job opening.
 
-Job Title: ${job.title}
-Job Description: ${job.description || "N/A"}
-Job Requirements: ${(job.requirement || job.requirements || []).join(", ")}
+### JOB CONTEXT
+- **Title**: ${job.title}
+- **Description**: ${job.description || "N/A"}
+- **Key Requirements**: ${(job.requirement || job.requirements || []).join(", ")}
 
-Candidate's Projects:
+### CANDIDATE PROJECTS
 ${projects
   .map(
     (p, i) => `
-Project ${i + 1}: ${p.name}
-Description: ${p.description || "No description"}
-Technologies: ${(p.technologies || []).join(", ")}
+PROJECT #${i + 1}: ${p.name}
+- **Description**: ${p.description || "No description provided"}
+- **Technologies**: ${(p.technologies || []).join(", ")}
 `,
   )
   .slice(0, 5)
   .join("\n")}
 
-For each project, return a relevance score (0-10):
-- 0: Completely unrelated to job
-- 5: Somewhat related (shares some skills/technologies)
-- 10: Highly relevant (directly demonstrates job-required skills)
+### EVALUATION CRITERIA
+Rate each project on a scale of 0 to 10 based on:
+1. **Technical Alignment**: Does it use the same stack or solve similar technical problems?
+2. **Domain Alignment**: Is it in the same industry or functional area?
+3. **Complexity**: Does it demonstrate professional-grade work vs. simple tutorial output?
 
-Return JSON:
+### RESPONSE FORMAT
+Return ONLY a JSON object:
 {
   "projects": [
-    { "project_index": 1, "relevance_score": 8, "reason": "Uses React and Node.js which are required" }
+    { 
+      "project_index": 1, 
+      "relevance_score": 8, 
+      "reason": "Uses core stack (React/Node) and solves similar high-traffic problems." 
+    }
   ]
 }
-    `.trim();
+`.trim();
 
     const openaiInstance = getOpenAI();
     if (!openaiInstance) return { score: 0, details: "AI not available" };
@@ -712,14 +535,12 @@ Return JSON:
     try {
       const response = await openaiInstance.chat.completions.create({
         model: getModel(),
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "system", content: "You are a professional technical recruiter. Always respond in valid JSON." }, { role: "user", content: prompt }],
         response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 4096,
       });
 
       const rawContent = response.choices[0]?.message?.content || "{}";
-
       const parsed = recoverTruncatedJson(rawContent) as { projects: any[] };
 
       const projectScores = parsed.projects || [];
@@ -863,64 +684,78 @@ ${pdfText.substring(0, 10000)}
 
     if (openaiInstance && cvText.length > 20 && commonSkills.length > 0) {
       const skillNamesList = commonSkills.map((s) => s.name).join(", ");
-      const prompt =
-        `Analyze this CV. Return JSON with: skills (from the valid list only, match synonyms), extracted_major (string or null), experience_level ("internship"|"full-time"|"part-time"|"freelance"|"none"), has_it_cert (boolean).
+      const prompt = `
+Analyze the following CV content to extract key professional attributes.
 
-Candidate Data:
-${cvText.substring(0, 5000)}
+### CV CONTENT
+${cvText.substring(0, 6000)}
 
-Valid Skills (use EXACT names): ${skillNamesList}
+### EXTRACTION GOALS
+1. **Skills**: Identify all skills mentioned that exist in the provided "Valid Skills" list. Match synonyms (e.g., "ReactJS" -> "React").
+2. **Major**: Identify the candidate's primary field of study (e.g., "Software Engineering", "Marketing").
+3. **Experience Level**: Determine the overall role type: "internship", "full-time", "part-time", or "freelance".
+4. **IT Certification**: Does the candidate possess any IT-related professional certifications?
+5. **Projects**: Extract up to 3 notable projects including their name, description, and key technologies used.
 
-Return: {"skills":["..."],"extracted_major":"...","experience_level":"...","has_it_cert":false}`.trim();
+### VALID SKILLS LIST (Use EXACT names)
+${skillNamesList}
+
+### RESPONSE FORMAT
+Return ONLY a valid JSON object:
+{
+  "skills": ["Skill Name 1", "Skill Name 2"],
+  "extracted_major": "Field name",
+  "experience_level": "one of the types",
+  "has_it_cert": true,
+  "projects": [
+    { "name": "Project Name", "description": "What it does", "technologies": ["Tech A", "Tech B"] }
+  ]
+}
+`.trim();
 
       try {
         const response = await openaiInstance.chat.completions.create({
           model: getModel(),
-          messages: [{ role: "user", content: prompt }],
+          messages: [
+            { role: "system", content: "You are a specialized CV data extraction engine. Always output valid JSON." },
+            { role: "user", content: prompt }
+          ],
           response_format: { type: "json_object" },
           temperature: 0.1,
-          max_tokens: 4096,
         });
 
         const rawContent = response.choices[0]?.message?.content || "{}";
-        const finishReason = response.choices[0]?.finish_reason;
-        if (finishReason === "length") {
-          console.warn("[CV Scoring] AI response truncated (finish_reason=length). Partial results may be returned.");
-        }
-
-        // Robust JSON recovery
         const parsed = recoverTruncatedJson(rawContent);
+        console.log(`[AI Extraction] Parsed Result:`, JSON.stringify(parsed, null, 2));
+
         const extractedNames: string[] = Array.isArray(parsed.skills)
           ? parsed.skills.filter((s: any) => typeof s === "string")
           : [];
 
-        if (educations.length === 0) {
-          // console.log(
-          //   `[CV Scoring Diagnostics] Educations array is empty. AI returned major: ${parsed.extracted_major}`,
-          // );
-          if (parsed.extracted_major) {
-            educations.push({ degree: "AI Extracted", field_of_study: parsed.extracted_major });
-            // console.log(`[CV Scoring Diagnostics] -> Successfully injected major!`);
-          }
+        if (educations.length === 0 && parsed.extracted_major) {
+          console.log(`[AI Extraction] Extracted Major: ${parsed.extracted_major}`);
+          educations.push({ degree: "AI Extracted", field_of_study: parsed.extracted_major });
         }
 
-        if (experiences.length === 0) {
-          // console.log(
-          //   `[CV Scoring Diagnostics] Experiences array is empty. AI returned experience_level: ${parsed.experience_level}`,
-          // );
-          if (parsed.experience_level && parsed.experience_level !== "none") {
-            experiences.push({
-              position: "AI Extracted Role",
-              company: "CV Reference",
-              description: parsed.experience_level,
-            });
-            // console.log(`[CV Scoring Diagnostics] -> Successfully injected experience!`);
-          }
+        if (projects.length === 0 && Array.isArray(parsed.projects) && parsed.projects.length > 0) {
+          console.log(`[AI Extraction] Extracted ${parsed.projects.length} projects`);
+          projects = parsed.projects.map((p: any) => ({
+            name: p.name || "Unnamed Project",
+            description: p.description || "",
+            technologies: Array.isArray(p.technologies) ? p.technologies : []
+          }));
+        }
+
+        if (experiences.length === 0 && parsed.experience_level && parsed.experience_level !== "none") {
+          experiences.push({
+            position: "AI Extracted Role",
+            company: "CV Reference",
+            description: parsed.experience_level,
+          });
         }
 
         if (certifications.length === 0 && parsed.has_it_cert) {
           certifications.push({ name: "AI Extracted IT Certification" });
-          // console.log(`[CV Scoring Diagnostics] -> Successfully injected certification!`);
         }
 
         aiExtractedSkillIds = extractedNames
@@ -929,22 +764,17 @@ Return: {"skills":["..."],"extracted_major":"...","experience_level":"...","has_
             return match?.id ?? null;
           })
           .filter((id): id is number => id !== null);
-
-        // console.log(`[CV Scoring] AI extracted names: [${extractedNames.join(", ")}]`);
-        // console.log(`[CV Scoring] Mapped to ${aiExtractedSkillIds.length} skill IDs (finish_reason: ${finishReason}).`);
       } catch (err: any) {
         console.warn("OpenAI common_skills extraction failed:", err.message);
 
         // FALLBACK: Try a simpler skills-only prompt
         try {
-          // console.log("[CV Scoring] Attempting fallback with skills-only prompt...");
           const fallbackPrompt = `Extract skills from this CV. Return JSON: {"skills":["..."]}. Only use names from this list: ${skillNamesList}\n\nCV:\n${cvText.substring(0, 5000)}`;
           const fallbackResponse = await openaiInstance.chat.completions.create({
             model: getModel(),
             messages: [{ role: "user", content: fallbackPrompt }],
             response_format: { type: "json_object" },
             temperature: 0.1,
-            max_tokens: 2048,
           });
           const fallbackRaw = fallbackResponse.choices[0]?.message?.content || "{}";
           const fallbackParsed = recoverTruncatedJson(fallbackRaw);
@@ -958,10 +788,6 @@ Return: {"skills":["..."],"extracted_major":"...","experience_level":"...","has_
               return match?.id ?? null;
             })
             .filter((id): id is number => id !== null);
-
-          // console.log(
-          //   `[CV Scoring] Fallback extracted ${fallbackNames.length} names, mapped to ${aiExtractedSkillIds.length} IDs.`,
-          // );
         } catch (fallbackErr: any) {
           console.warn("[CV Scoring] Fallback extraction also failed:", fallbackErr.message);
         }
