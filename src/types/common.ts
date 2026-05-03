@@ -240,6 +240,7 @@ export enum NotificationType {
   JobStatusUpdated = "job_status_updated",
   NewApplication = "new_application",
   ApplicationStatusUpdated = "application_status_updated",
+  NewChatMessage = "new_chat_message",
 }
 
 export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
@@ -405,4 +406,48 @@ export type ApplicationStatusDetailsUpdate = Database["public"]["Tables"]["appli
 
 export interface ApplicationStatusDetailsQueryParams extends QueryParams {
   application_id?: number;
+}
+
+// REVIEWS
+export enum ReviewType {
+  CompanyToApplicant = "COMPANY_TO_APPLICANT",
+  ApplicantToCompany = "APPLICANT_TO_COMPANY",
+}
+
+export interface Review {
+  id: number;
+  application_id: number;
+  reviewer_id: number;
+  type: ReviewType;
+  rating: number;
+  comment: string | null;
+  is_approved: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewInsert {
+  application_id: number;
+  reviewer_id: number;
+  type: ReviewType;
+  rating: number;
+  comment?: string | null;
+  is_approved?: boolean;
+}
+
+export interface ReviewUpdate {
+  rating?: number;
+  comment?: string | null;
+  is_approved?: boolean;
+  updated_at?: Date | string;
+}
+
+export interface ReviewQueryParams extends QueryParams {
+  id?: number;
+  application_id?: number;
+  reviewer_id?: number;
+  type?: ReviewType;
+  company_id?: number; // Helper for fetching reviews for a company
+  is_approved?: boolean;
+  order?: "asc" | "desc";
 }
