@@ -159,6 +159,33 @@ export const FAQ_DB: FAQ[] = [
     roles: ["Student"],
     category: "profile",
   },
+  {
+    id: "feat-1",
+    question: "How does the AI CV Scoring work?",
+    answer:
+      "Our AI analyzes your CV against the job requirements. It calculates a score based on your matched skills, education (bonus for IT-related majors), project complexity, and relevant work experience. You can see your score in the Applications dashboard.",
+    keywords: ["cv score", "scoring", "ai score", "how is it calculated", "match percentage", "score breakdown"],
+    roles: ["Student"],
+    category: "profile",
+  },
+  {
+    id: "feat-2",
+    question: "How can I chat with an employer or student?",
+    answer:
+      "Students can message employers after applying for a job, and employers can initiate chats with applicants from their dashboard. Look for the message icon in your application details to start a real-time conversation.",
+    keywords: ["chat", "message", "contact employer", "contact student", "inbox", "real-time chat"],
+    roles: ["Student", "Employer"],
+    category: "general",
+  },
+  {
+    id: "feat-3",
+    question: "How will I know if I have a new message or update?",
+    answer:
+      "SEJobs sends real-time notifications in your browser whenever you receive a new message or your application status changes. We also send automated email notifications to ensure you never miss an important update.",
+    keywords: ["notification", "email alert", "message alert", "how to know", "stay updated"],
+    roles: ["Student", "Employer"],
+    category: "general",
+  },
 
   // ─────────────────────────────────────────────
   // EMPLOYER (employers)
