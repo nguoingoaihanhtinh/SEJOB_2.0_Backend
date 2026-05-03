@@ -14,6 +14,7 @@ export const env = {
   SUPABASE_BUCKET_NAME: process.env.SUPABASE_BUCKET_NAME || "DEV",
   JWT_EXPIRES_IN_MS: jwtExpiresInMs,
   JWT_SECRET: process.env.JWT_SECRET,
+  ES_HOST: process.env.ES_HOST,
 };
 
 // Validate required env vars

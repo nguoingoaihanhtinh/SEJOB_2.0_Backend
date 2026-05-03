@@ -14,21 +14,6 @@ import { getTopCVTotal, getTopCVwithOffset } from "./topcv.handler";
 import { verifyToken } from "@/utils/jwt.util";
 import { MessageUtil } from "@/utils/MessageUtil";
 
-const getOptionalUserId = (req: Request): number | null => {
-  const authHeader = req.headers.authorization;
-  const bearer = authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : undefined;
-  const token = bearer || (req.cookies?.access_token as string | undefined);
-
-  if (!token) return null;
-
-  try {
-    const decoded = verifyToken(token);
-    return decoded.userId;
-  } catch (_err) {
-    return null;
-  }
-};
-
 // Helper: Parse job query params from request
 function parseJobQueryParams(query: any, includePagination = true) {
   const keyword = typeof query.keyword === "string" ? _.trim(query.keyword) : "";
@@ -120,9 +105,7 @@ export async function listJobs(req: Request, res: Response) {
 
   const queryParams = parseJobQueryParams(req.query, true);
 
-  const currentUserId = getOptionalUserId(req);
-
-  const { data: jobs, pagination } = await jobService.list({ ...queryParams, current_user_id: currentUserId || undefined });
+  const { data: jobs, pagination } = await jobService.list({ ...queryParams, current_user_id: req.user?.userId || undefined });
 
   const formattedJobs = jobs.map((job) => toTopCvFormat(job, job.company, null));
 
@@ -277,5 +260,16 @@ export async function listMergedJobs(req: Request, res: Response) {
       total: totalJobs + totalTopCVJobs,
       total_pages: Math.ceil((totalJobs + totalTopCVJobs) / page_size),
     },
+  });
+}
+
+export async function syncES(req: Request, res: Response) {
+  const queryParams = parseJobQueryParams(req.query, false);
+
+  const result = await jobService.syncList(queryParams);
+
+  res.status(200).json({
+    success: true,
+    data: result,
   });
 }

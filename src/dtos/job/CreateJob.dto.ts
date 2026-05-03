@@ -39,8 +39,7 @@ export const createJobSchema = z.object({
   // Relations
   company_branches_ids: z.array(z.number().int().positive()).min(1, "Please select at least one branch"),
   category_ids: z.array(z.number().int().positive()).min(1, "Please select at least one category"),
-  required_skill_ids: z.array(z.number().int().positive()).optional(),
-  required_skills: z.array(requiredSkillSchema).min(1, "Please select at least one skill"),
+  required_skill_ids: z.array(z.number().int().positive()).min(1, "Please select at least one skill"),
   employment_type_ids: z.array(z.number().int().positive()).min(1, "Please select at least one employment type"),
   level_ids: z.array(z.number().int().positive()).min(1, "Please select at least one level"),
 });

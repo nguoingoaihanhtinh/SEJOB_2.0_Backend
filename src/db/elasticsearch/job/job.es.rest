@@ -1,0 +1,145 @@
+@host = http://localhost:19200
+
+### CHECK HEALTH
+GET {{host}}
+
+###
+
+### =====================================
+### 2. CREATE INDEX + MAPPING (JOBS)
+### =====================================
+PUT {{host}}/jobs
+Content-Type: application/json
+
+< ./job.mapping.json
+
+###
+
+### =====================================
+### 2. DELETE INDEX (JOBS)
+### =====================================
+DELETE {{host}}/jobs
+
+###
+
+###
+
+### =====================================
+### LIST ALL JOBS (_DOCS)
+### =====================================
+GET {{host}}/jobs/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_all": {}
+  },
+  "size": 100
+}
+
+###
+
+### =====================================
+### 3. INSERT JOB
+### =====================================
+POST {{host}}/jobs/_doc/2
+Content-Type: application/json
+
+{
+  "id": "1",
+  "title": "Nodejs Backend Developer",
+  "skills": ["nodejs", "express", "mongodb"],
+  "description": "Build scalable API server",
+  "company_name": "Tech Company",
+  "location": "HCM",
+  "salary_min": 1000,
+  "salary_max": 2000,
+  "is_remote": true,
+  "created_at": "2026-01-01",
+  "updated_at": "2026-01-01"
+}
+
+###
+
+### =====================================
+### 4. UPDATE JOB
+### =====================================
+POST {{host}}/jobs/_update/1
+Content-Type: application/json
+
+{
+  "doc": {
+    "title": "Senior Nodejs Backend Developer",
+    "salary_max": 3000
+  }
+}
+
+###
+
+### =====================================
+### 5. DELETE JOB
+### =====================================
+DELETE {{host}}/jobs/_doc/1
+
+###
+
+### =====================================
+### 6. SEARCH JOBS (BM25)
+### =====================================
+GET {{host}}/jobs/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "multi_match": {
+      "query": "nodejs backend api",
+      "fields": ["title", "description", "skills"]
+    }
+  }
+}
+
+###
+
+### =====================================
+### 7. SEARCH WITH BOOST
+### =====================================
+GET {{host}}/jobs/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "multi_match": {
+      "query": "nodejs backend",
+      "fields": [
+        "title^3",
+        "skills^2",
+        "description"
+      ]
+    }
+  }
+}
+
+###
+
+### =====================================
+### 8. FILTER + SEARCH (REAL WORLD)
+### =====================================
+GET {{host}}/jobs/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": {
+        "multi_match": {
+          "query": "backend nodejs",
+          "fields": ["title^3", "description", "skills"]
+        }
+      },
+      "filter": [
+        { "term": { "location": "HCM" } },
+        { "term": { "is_remote": true } }
+      ]
+    }
+  }
+}

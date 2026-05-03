@@ -1,0 +1,98 @@
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "job_analyzer": {
+          "type": "standard"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "id": { "type": "long" },
+      "title": {
+        "type": "text",
+        "analyzer": "job_analyzer",
+        "fields": {
+          "keyword": { "type": "keyword" }
+        }
+      },
+
+      "description": { "type": "text" },
+      "salary_from": { "type": "long" },
+      "salary_to": { "type": "long" },
+      "salary_text": { "type": "keyword" },
+      "job_deadline": { "type": "date" },
+      "created_at": { "type": "date" },
+
+      "status": { "type": "keyword" },
+      "company": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "long" },
+          "name": {
+            "type": "text",
+            "fields": {
+              "keyword": { "type": "keyword" }
+            }
+          },
+          "website_url": { "type": "keyword" },
+          "is_verified": { "type": "boolean" }
+        }
+      },
+
+      "company_branches": {
+        "type": "nested",
+        "properties": {
+          "id": { "type": "long" },
+          "name": { "type": "text" },
+
+          "address": { "type": "text" },
+
+          "ward": {
+            "properties": {
+              "id": { "type": "long" },
+              "name": { "type": "keyword" }
+            }
+          },
+
+          "province": {
+            "properties": {
+              "id": { "type": "long" },
+              "name": { "type": "keyword" }
+            }
+          },
+
+          "country": {
+            "properties": {
+              "id": { "type": "long" },
+              "name": { "type": "keyword" }
+            }
+          }
+        }
+      },
+      "skills": {
+        "type": "nested",
+        "properties": {
+          "id": { "type": "long" },
+          "name": { "type": "keyword" }
+        }
+      },
+      "categories": {
+        "type": "nested",
+        "properties": {
+          "id": { "type": "long" },
+          "name": { "type": "keyword" }
+        }
+      },
+      "levels": {
+        "type": "nested",
+        "properties": {
+          "id": { "type": "long" },
+          "name": { "type": "keyword" }
+        }
+      }
+    }
+  }
+}

@@ -16,6 +16,8 @@ import { toTopCvFormat } from "@/utils/topCVFormat";
 import { appEventEmitter, AppEvents } from "@/events/EventEmitter";
 import NotificationService from "@/services/notifications.service";
 import companyService from "./company.service";
+import convert from "@/utils/convert";
+import { ESJob } from "@/db/elasticsearch/elasticsearch";
 export class JobService {
   async getTotalJobs(input: JobQueryParams) {
     const total = await jobRepository.countFindAll(input);
@@ -129,20 +131,11 @@ export class JobService {
       const {
         category_ids = [],
         required_skill_ids = [],
-        required_skills = [],
         employment_type_ids = [],
         level_ids = [],
         company_branches_ids = [],
         ...jobPayload
       } = jobData;
-
-      await Promise.all(required_skills.map((skill) => {
-        if (!skill.id) {
-          skillRepo.create({ skillData: { name: skill.name } }).then((createdSkill) => {
-            required_skill_ids.push(createdSkill.id);
-          });
-        }
-      }));
 
       const { error } = await this.validateCreate(jobData);
 
@@ -178,10 +171,13 @@ export class JobService {
         title: jobPayload.title || "",
       });
 
+      await this.syncOne(createdJob.id);
+
       return await this.findOne({ jobId });
     } catch (error) {
       if (createdJobId) {
         await this.delete(createdJobId);
+        await ESJob.delete(createdJobId);
       }
 
       throw error;
@@ -416,6 +412,24 @@ export class JobService {
     }
 
     return await this.findOne({ jobId });
+  }
+
+  async syncList(input: JobQueryParams) {
+    const { data: jobs, pagination } = await jobRepository.findAll(input);
+    const jobES = [];
+
+    for (const job of jobs) {
+      jobES.push(convert.convertJobToES(job));
+    }
+
+    return ESJob.bulkIndex(jobES);
+  }
+
+  async syncOne(jobId: number) {
+    const created_job = await this.findOne({ jobId });
+    const jobES = convert.convertJobToES(created_job);
+
+    return ESJob.index(jobES);
   }
 
   async validateUpdate(jobData: {
