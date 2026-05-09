@@ -6,6 +6,8 @@ import { createUserSchema } from "@/dtos/user/CreateUser.dto";
 import { BadRequestError, NotFoundError } from "@/utils/errors";
 import { updateUserSchema } from "@/dtos/user/UpdateUser.dto";
 import { MessageUtil } from "@/utils/MessageUtil";
+import { getProvinces } from "./address.handler";
+import { supabase } from "@/config/supabase";
 
 export async function getUsers(req: Request, res: Response) {
   const { page, limit } = req.query;
@@ -59,6 +61,16 @@ export async function updateUser(request: Request, response: Response) {
   }
 
   const userData = validate.schema_validate(updateUserSchema, request.body);
+
+  if (userData?.student_info?.location) {
+    const { data: provinces } = await supabase.from("provinces").select("id, name", { count: "exact" });
+
+    const province = _.find(provinces, { name: userData.student_info.location });
+
+    if (province) {
+      userData.student_info.location_id = province.id;
+    }
+  }
 
   const updatedUser = await UserService.updateUser({ userId: _.toNumber(id), userData: userData });
 

@@ -6,7 +6,7 @@ import _ from "lodash";
 export class StudentRepository {
   private readonly db: SupabaseClient;
   public readonly fields =
-    "id, user_id, about, location, skills, open_for_opportunities, phone_number, desired_positions, date_of_birth, gender, created_at, updated_at";
+    "id, user_id, about, location, location_id, skills, open_for_opportunities, phone_number, desired_positions, date_of_birth, gender, created_at, updated_at";
 
   constructor() {
     this.db = supabase;

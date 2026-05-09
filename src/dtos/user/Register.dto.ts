@@ -31,6 +31,7 @@ const companyProfileSchema = z.object({
 export const studentProfileSchema = z.object({
   about: z.string().optional(),
   location: z.string().optional(),
+  location_id: z.number().optional(),
   skills: z.array(z.string()).optional(),
   open_for_opportunities: z.boolean().optional(),
   phone_number: z.string().optional(),

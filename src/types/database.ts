@@ -246,6 +246,97 @@ export type Database = {
           },
         ]
       }
+      chat_conversations: {
+        Row: {
+          created_at: string | null
+          employer_id: number | null
+          id: number
+          job_id: number | null
+          student_id: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          employer_id?: number | null
+          id?: number
+          job_id?: number | null
+          student_id?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          employer_id?: number | null
+          id?: number
+          job_id?: number | null
+          student_id?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_conversations_employer_id_fkey"
+            columns: ["employer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          content: string
+          conversation_id: number | null
+          created_at: string | null
+          id: number
+          is_read: boolean | null
+          sender_id: number | null
+        }
+        Insert: {
+          content: string
+          conversation_id?: number | null
+          created_at?: string | null
+          id?: number
+          is_read?: boolean | null
+          sender_id?: number | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: number | null
+          created_at?: string | null
+          id?: number
+          is_read?: boolean | null
+          sender_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       common_skills: {
         Row: {
           category: string | null
@@ -1217,6 +1308,57 @@ export type Database = {
           },
         ]
       }
+      reviews: {
+        Row: {
+          application_id: number | null
+          comment: string | null
+          created_at: string | null
+          id: number
+          is_approved: boolean | null
+          rating: number
+          reviewer_id: number | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          application_id?: number | null
+          comment?: string | null
+          created_at?: string | null
+          id?: number
+          is_approved?: boolean | null
+          rating: number
+          reviewer_id?: number | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          application_id?: number | null
+          comment?: string | null
+          created_at?: string | null
+          id?: number
+          is_approved?: boolean | null
+          rating?: number
+          reviewer_id?: number | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       saved_jobs: {
         Row: {
           created_at: string | null
@@ -1348,6 +1490,7 @@ export type Database = {
           gender: string | null
           id: number
           location: string | null
+          location_id: number | null
           open_for_opportunities: boolean | null
           phone_number: string | null
           skills: string[] | null
@@ -1362,6 +1505,7 @@ export type Database = {
           gender?: string | null
           id?: never
           location?: string | null
+          location_id?: number | null
           open_for_opportunities?: boolean | null
           phone_number?: string | null
           skills?: string[] | null
@@ -1376,6 +1520,7 @@ export type Database = {
           gender?: string | null
           id?: never
           location?: string | null
+          location_id?: number | null
           open_for_opportunities?: boolean | null
           phone_number?: string | null
           skills?: string[] | null
@@ -1591,6 +1736,7 @@ export type Database = {
           q_category_ids?: number[]
           q_company_id?: number
           q_employment_type_ids?: number[]
+          q_job_ids?: number[]
           q_keyword?: string
           q_level_ids?: number[]
           q_limit?: number

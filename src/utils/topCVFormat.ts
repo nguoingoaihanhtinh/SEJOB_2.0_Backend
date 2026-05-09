@@ -4,6 +4,7 @@ import _ from "lodash";
 export function toTopCvFormat(job: any, company: any = null, branch: any = null) {
   return {
     id: job.id,
+    score: job?.score || null,
     url: job.website_url || "",
     title: job.title,
     description: job.description || "",

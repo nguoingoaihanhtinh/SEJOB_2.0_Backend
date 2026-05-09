@@ -1,5 +1,5 @@
 import studentRepository from "@/repositories/student.repository";
-import { StudentQueryAllParams } from "@/types/common";
+import { StudentQueryAllParams, StudentQueryParams } from "@/types/common";
 import { NotFoundError } from "@/utils/errors";
 
 export class StudentService {
@@ -9,13 +9,12 @@ export class StudentService {
         return students;
     }
 
-    async findOne(input: { student_id: number }) {
-        const { student_id } = input;
+    async findOne(input: StudentQueryParams) {
 
-        const student = await studentRepository.findOne({ student_id });
+        const student = await studentRepository.findOne(input);
 
         if (!student) {
-            throw new NotFoundError({ message: `Student with ID ${student_id} not found` });
+            throw new NotFoundError({ message: `Student with ID ${input.user_id || input.student_id} not found` });
         }
         return student;
     }

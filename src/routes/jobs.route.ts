@@ -1,15 +1,17 @@
 import { Router } from "express";
-import { listJobs, getJob, createJob, syncES, updateJob, deleteJob, listJobsByCompany, listMergedJobs } from "@/handlers/jobs.handler";
+import { listJobs, getJob, createJob, syncES, updateJob, deleteJob, listJobsByCompany, listMergedJobs, userRecommendationJobs } from "@/handlers/jobs.handler";
 import { authenticate } from "@/middlewares/auth.middleware";
 import { authorizeRoles } from "@/middlewares/authorizeRoles";
 
 const router = Router();
 
 // Public list and get
-router.get("/", authenticate, authorizeRoles("Admin", "Manager", "Employer"), listJobs);
+router.get("/", listJobs);
 router.get("/merged", listMergedJobs);
 router.get("/:id", getJob);
 router.get("/company/:id", listJobsByCompany);
+// router.get("/recommendation", listJobsByCompany);
+router.get("/recommendation/me", authenticate, authorizeRoles("Student"), userRecommendationJobs);
 
 
 // Protected CRUD

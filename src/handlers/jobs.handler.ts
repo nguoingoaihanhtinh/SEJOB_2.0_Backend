@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import jobService from "@/services/jobs.service";
-import { BadRequestError, NotFoundError } from "@/utils/errors";
+import { BadRequestError, NotFoundError, UnauthorizedError } from "@/utils/errors";
 import _ from "lodash";
 import validate from "@/utils/validate";
 import { createJobSchema } from "@/dtos/job/CreateJob.dto";
@@ -271,5 +271,27 @@ export async function syncES(req: Request, res: Response) {
   res.status(200).json({
     success: true,
     data: result,
+  });
+}
+
+export async function userRecommendationJobs(req: Request, res: Response) {
+  const user = req.user;
+
+  if (!user) {
+    throw new UnauthorizedError({ message: MessageUtil.get("UNAUTHORIZED") });
+  }
+
+  const { data: jobs, pagination } = await jobService.userRecommendationJobs({ 
+    userId: user.userId, 
+    page: _.toInteger(req.query.page) || 1, 
+    limit: _.toInteger(req.query.limit) || 10 
+  });
+
+  const formattedJobs = jobs.map((job) => toTopCvFormat(job, job.company, null));
+
+  res.status(200).json({
+    success: true,
+    data: formattedJobs,
+    pagination
   });
 }

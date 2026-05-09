@@ -355,6 +355,7 @@ export class UserService {
       const {
         about,
         location,
+        location_id,
         skills,
         open_for_opportunities,
         phone_number,
@@ -369,6 +370,7 @@ export class UserService {
           {
             about: about || null,
             location: location || null,
+            location_id: location_id || null,
             open_for_opportunities: open_for_opportunities !== undefined ? open_for_opportunities : null,
             skills: skills || null,
             phone_number: phone_number || null,
