@@ -362,7 +362,7 @@ export class JobService {
 
     if (jobPayload.status && jobPayload.status !== job.status) {
       try {
-        const company = await companyService.findOne({ company_id: job.company_id });
+        const company = await companyService.findOne({ company_id: job.company_id as number });
 
         if (company.user_id) {
           await NotificationService.create({
@@ -577,6 +577,104 @@ export class JobService {
                     query: {
                       term: {
                         "company_branches.province.id": student.location_id,
+                      },
+                    },
+                    boost: 5,
+                  },
+                },
+              ],
+            },
+          },
+
+          functions: [
+            {
+              gauss: {
+                created_at: {
+                  origin: "now",
+                  scale: "30d",
+                  decay: 0.5,
+                },
+              },
+              weight: 2,
+            },
+          ],
+
+          score_mode: "sum",
+          boost_mode: "sum",
+        },
+      },
+    });
+
+    const jobIds = result.hits.hits.map((hit: any) => hit._source.id);
+
+    const result_jobs = await jobRepository.findAll({ job_ids: jobIds, page, limit });
+
+    const jobIndexMap = new Map<number, number>(jobIds.map((id: number, index: number) => [id, index]));
+    const scoreMap = new Map<number, number>(result.hits.hits.map((hit: any) => [hit._source.id, hit._score]));
+
+    const sortedJobs = [...result_jobs.data]
+      .sort((a, b) => {
+        const indexA = jobIndexMap.get(a.id as number) ?? Infinity;
+        const indexB = jobIndexMap.get(b.id as number) ?? Infinity;
+        return indexA - indexB;
+      })
+      .map((job) => ({
+        ...job,
+        score: scoreMap.get(job.id as number) ?? null,
+      }));
+
+    return { data: sortedJobs, pagination: result_jobs.pagination };
+  }
+
+  async similarJobRecommendation({ jobId, page = 1, limit = 10 }: { jobId: number, page: number, limit: number }) {
+    const { job } = await jobRepository.findOne(jobId);
+
+    const jobSkill = (_.get(job, 'skills') || []).map((skill : any) => skill.name) || [];
+
+    const jobCompanyBranch = (_.get(job, 'company_branches') || []).map((branch : any) => _.get(branch, "province.id")) || [];
+
+    const result = await ESJob.search({
+      from: (page - 1) * limit,
+      size: limit,
+      query: {
+        function_score: {
+          query: {
+            bool: {
+              filter: [
+                {
+                  term: {
+                    status: "Approved",
+                  },
+                },
+              ],
+              must_not: [
+                {
+                  term: {
+                    id: jobId,
+                  },
+                },
+              ],
+
+              should: [
+                {
+                  nested: {
+                    path: "skills",
+                    query: {
+                      terms: {
+                        "skills.name": jobSkill,
+                      },
+                    },
+                    score_mode: "sum",
+                    boost: 7,
+                  },
+                },
+
+                {
+                  nested: {
+                    path: "company_branches",
+                    query: {
+                      terms: {
+                        "company_branches.province.id": jobCompanyBranch,
                       },
                     },
                     boost: 5,

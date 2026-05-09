@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listJobs, getJob, createJob, syncES, updateJob, deleteJob, listJobsByCompany, listMergedJobs, userRecommendationJobs } from "@/handlers/jobs.handler";
+import { listJobs, getJob, createJob, syncES, similarJobRecommendation, updateJob, deleteJob, listJobsByCompany, listMergedJobs, userRecommendationJobs } from "@/handlers/jobs.handler";
 import { authenticate } from "@/middlewares/auth.middleware";
 import { authorizeRoles } from "@/middlewares/authorizeRoles";
 
@@ -12,6 +12,7 @@ router.get("/:id", getJob);
 router.get("/company/:id", listJobsByCompany);
 // router.get("/recommendation", listJobsByCompany);
 router.get("/recommendation/me", authenticate, authorizeRoles("Student"), userRecommendationJobs);
+router.get("/recommendation/:id/similar", similarJobRecommendation);
 
 
 // Protected CRUD

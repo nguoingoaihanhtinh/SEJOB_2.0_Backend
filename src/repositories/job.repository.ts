@@ -148,7 +148,7 @@ export class JobRepository {
 
     if (!job) throw new NotFoundError({ message: `Job with ID ${jobId} not found` });
 
-    return { job };
+    return { job: job as JobAfterJoined };
   }
 
   async create(input: Partial<CreateJobDto>) {

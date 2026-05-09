@@ -128,7 +128,7 @@ export async function getJob(req: Request, res: Response) {
     throw new NotFoundError({ message: MessageUtil.get("JOB_NOT_FOUND") });
   }
 
-  let responseData = job;
+  let responseData: any = job;
   if (formatTopCv) {
     responseData = toTopCvFormat(job, job.company, null);
   }
@@ -287,6 +287,20 @@ export async function userRecommendationJobs(req: Request, res: Response) {
     limit: _.toInteger(req.query.limit) || 10 
   });
 
+  const formattedJobs = jobs.map((job) => toTopCvFormat(job, job.company, null));
+
+  res.status(200).json({
+    success: true,
+    data: formattedJobs,
+    pagination
+  });
+}
+
+export async function similarJobRecommendation(req: Request, res: Response) {
+  const id = Number(req.params.id);
+
+  const { data: jobs, pagination } = await jobService.similarJobRecommendation({ jobId: id, page: 1, limit: 10 });
+  
   const formattedJobs = jobs.map((job) => toTopCvFormat(job, job.company, null));
 
   res.status(200).json({

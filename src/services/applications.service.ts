@@ -84,7 +84,7 @@ export const ApplicationService = {
 
 
     try {
-      const company = await companyService.findOne({ company_id: job.company_id });
+      const company = await companyService.findOne({ company_id: job.company_id as number });
       
       if (company.user_id) {
         await notificationService.create({
