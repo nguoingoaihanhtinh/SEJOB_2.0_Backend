@@ -364,9 +364,8 @@ export class UserService {
         date_of_birth,
       } = userData.student_info;
 
-      await studentRepository.update({
-        userId,
-        studentData: _.pickBy(
+      const existingStudent = await studentRepository.findByUserId(userId);
+      const studentDataPayload = _.pickBy(
           {
             about: about || null,
             location: location || null,
@@ -379,8 +378,21 @@ export class UserService {
             gender: gender || null,
           },
           (value) => value !== undefined && value !== null
-        ),
-      });
+      );
+
+      if (existingStudent) {
+        await studentRepository.update({
+          userId,
+          studentData: studentDataPayload,
+        });
+      } else {
+        await studentRepository.create({
+          studentData: {
+            user_id: userId,
+            ...studentDataPayload,
+          },
+        });
+      }
     }
 
     await NotificationService.create({
@@ -395,7 +407,7 @@ export class UserService {
       },
     });
 
-    return updatedUser;
+    return this.findOne({ userId });
   }
 
   async deleteUser(userId: number) {

@@ -61,3 +61,16 @@ export async function deleteCV(req: Request, res: Response) {
   await CVService.remove(id);
   res.status(200).json({ success: true, message: MessageUtil.get("CV_DELETED_SUCCESSFULLY") });
 }
+
+export async function extractCVData(req: Request, res: Response) {
+  if (!req.user) throw new UnauthorizedError({ message: MessageUtil.get("AUTHENTICATION_REQUIRED") });
+  if (req.user.role !== "Student") {
+    throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_CREATE_CERTIFICATIONS") });
+  }
+
+  const { fileUrl } = req.body;
+  if (!fileUrl) throw new BadRequestError({ message: "File URL is required" });
+
+  const data = await CVService.extractData(fileUrl);
+  res.status(200).json({ success: true, data });
+}
