@@ -16,7 +16,10 @@ export interface UserQueryParams extends QueryParams {
   user_id?: number;
   user_ids?: number[];
   email?: string;
+  roles?: string[];
   reset_token?: string;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
 }
 
 // STUDENT

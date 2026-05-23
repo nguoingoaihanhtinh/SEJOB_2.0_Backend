@@ -8,12 +8,15 @@ import { updateUserSchema } from "@/dtos/user/UpdateUser.dto";
 import { MessageUtil } from "@/utils/MessageUtil";
 import { getProvinces } from "./address.handler";
 import { supabase } from "@/config/supabase";
+import convert from "@/utils/convert";
 
 export async function getUsers(req: Request, res: Response) {
-  const { page, limit } = req.query;
+  const { page, limit, email, roles } = req.query;
   const { data: users, pagination } = await UserService.findAll({
     page: _.toInteger(page) || 1,
     limit: _.toInteger(limit) || 10,
+    email: _.toString(email) || "",
+    roles: convert.split(_.toString(roles)),
   });
 
   res.status(200).json({

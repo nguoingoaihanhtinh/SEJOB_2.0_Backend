@@ -2,21 +2,22 @@ import { JobAfterJoined } from "@/types/common";
 
 const convert = {
   // "1,2,3" => [1, 2, 3]
-  split: <T = string>(input: string | undefined | null, delimiter: string = ",", formatFn: (value: string) => T = (v) => v as unknown as T): T[] => {
-    if (!input) return [];
-    return input
+  split<T = string>(input: string | undefined | null, delimiter: string = ",", formatFn?: (value: string) => T): T[] {
+    if (!input?.trim()) return []; // xử lý chuỗi rỗng / chỉ có whitespace
+
+    const items = input
       .split(delimiter)
       .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-      .map(formatFn);
+      .filter((item) => item.length > 0);
+
+    return formatFn ? items.map(formatFn) : (items as unknown as T[]);
   },
-  normalizeArray: (v?: any[]) =>
-    Array.isArray(v) && v.length > 0 ? v : null,
+  normalizeArray: (v?: any[]) => (Array.isArray(v) && v.length > 0 ? v : null),
   convertJobToES: (job: JobAfterJoined) => {
-    const skills = job.skills ?? []
-    const categories = job.categories ?? []
-    const levels = job.levels ?? []
-    const branches = job.company_branches ?? []
+    const skills = job.skills ?? [];
+    const categories = job.categories ?? [];
+    const levels = job.levels ?? [];
+    const branches = job.company_branches ?? [];
 
     return {
       id: job.id,
@@ -42,7 +43,7 @@ const convert = {
       },
 
       // -------- BRANCHES --------
-      company_branches: branches.map((b : any) => ({
+      company_branches: branches.map((b: any) => ({
         id: b.id ?? null,
         name: b.name ?? "",
         address: b.address ?? "",
@@ -84,20 +85,12 @@ const convert = {
       category_ids: categories.map((c) => c.id).filter(Boolean),
       level_ids: levels.map((l) => l.id).filter(Boolean),
 
-      province_ids: branches
-        .map((b : any) => b.province?.id)
-        .filter(Boolean),
+      province_ids: branches.map((b: any) => b.province?.id).filter(Boolean),
 
       // -------- SEARCH TEXT --------
-      search_text: [
-        job.title,
-        job.company?.name,
-        ...skills.map((s) => s.name),
-      ]
-        .filter(Boolean)
-        .join(" "),
-    }
-  }
+      search_text: [job.title, job.company?.name, ...skills.map((s) => s.name)].filter(Boolean).join(" "),
+    };
+  },
 };
 
 export default convert;

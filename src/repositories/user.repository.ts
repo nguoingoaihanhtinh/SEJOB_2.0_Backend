@@ -18,15 +18,31 @@ export class UserRepository {
     const page = _.get(input, "page");
     const limit = _.get(input, "limit");
     const user_ids = _.get(input, "user_ids") || [];
+    const email = _.get(input, 'email') || '';
+    const roles = _.get(input, 'roles') || [];
+    const sortBy = _.get(input, 'sort_by') || 'created_at';
+    const sortOrder = (_.get(input, 'sort_order') || 'desc') as 'asc' | 'desc';    
     const hasPagination = page && limit;
+
     let dbQuery = this.db.from("users").select(fields, { count: "exact" });
 
     if (user_ids.length > 0) {
       dbQuery = dbQuery.in("user_id", user_ids);
     }
-    // let dbQuery = this.db.from("users").select(fields, { count: "exact" }).eq("is_active", true);
 
-    const executeQuery = hasPagination ? dbQuery.range((page - 1) * limit, page * limit - 1) : dbQuery;
+    if (email) {
+      dbQuery = dbQuery.ilike("email", `%${email}%`);
+    }
+
+    if (_.size(roles) > 0) {
+      dbQuery = dbQuery.in("role", roles);
+    }
+
+    dbQuery = dbQuery.order(sortBy, { ascending: sortOrder === 'asc' });
+
+    const executeQuery = hasPagination
+      ? dbQuery.range((page - 1) * limit, page * limit - 1)
+      : dbQuery;
 
     const { data, error, count } = await executeQuery;
 

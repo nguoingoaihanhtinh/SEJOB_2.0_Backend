@@ -298,17 +298,17 @@ export class UserService {
       });
     }
 
-    await NotificationService.create({
-      data: {
-        title: "Your account has been created!",
-        content:
-          "Your account has been created by an administrator. Please complete your profile to get started.",
-        type: NotificationType.UserCreated,
-        status: "sent",
-        receiver_id: newUser.user_id,
-        sender_id: 1,
-      },
-    });
+    // await NotificationService.create({
+    //   data: {
+    //     title: "Your account has been created!",
+    //     content:
+    //       "Your account has been created by an administrator. Please complete your profile to get started.",
+    //     type: NotificationType.UserCreated,
+    //     status: "sent",
+    //     receiver_id: newUser.user_id,
+    //     sender_id: 1,
+    //   },
+    // });
 
     return newUser;
   }
@@ -383,17 +383,17 @@ export class UserService {
       });
     }
 
-    await NotificationService.create({
-      data: {
-        title: "Your profile has been updated!",
-        content:
-          "Your profile has been updated successfully. Make sure your information is accurate to get the best job recommendations.",
-        type: NotificationType.UserCreated,
-        status: "sent",
-        receiver_id: updatedUser?.user_id,
-        sender_id: 1,
-      },
-    });
+    // await NotificationService.create({
+    //   data: {
+    //     title: "Your profile has been updated!",
+    //     content:
+    //       "Your profile has been updated successfully. Make sure your information is accurate to get the best job recommendations.",
+    //     type: NotificationType.UserCreated,
+    //     status: "sent",
+    //     receiver_id: updatedUser?.user_id,
+    //     sender_id: 1,
+    //   },
+    // });
 
     return updatedUser;
   }
