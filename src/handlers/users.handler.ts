@@ -95,3 +95,16 @@ export async function deleteUser(request: Request, response: Response) {
     success: true,
   });
 }
+
+export async function activeUser(request: Request, response: Response) {
+  const id = request.params.id;
+  if (!id) {
+    throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID")});
+  }
+
+  await UserService.activeUser(_.toNumber(id));
+
+  response.status(200).json({
+    success: true,
+  });
+}

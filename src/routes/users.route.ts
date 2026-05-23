@@ -1,4 +1,4 @@
-import { createUser, deleteUser, getUserById, getUsers, updateUser } from "@/handlers/users.handler";
+import { createUser, deleteUser, getUserById, activeUser, getUsers, updateUser } from "@/handlers/users.handler";
 import { authenticate } from "@/middlewares/auth.middleware";
 import { authorizeRoles } from "@/middlewares/authorizeRoles";
 import { Router } from "express";
@@ -19,5 +19,8 @@ router.put("/:id", authenticate, authorizeRoles("Admin", "Student"), updateUser)
 
 // DELETE /api/users/:id - Delete user
 router.delete("/:id", authenticate, authorizeRoles("Admin"), deleteUser);
+
+// ACTIVE /api/users/:id - Active user
+router.put("/:id/active", authenticate, authorizeRoles("Admin"), activeUser);
 
 export default router;

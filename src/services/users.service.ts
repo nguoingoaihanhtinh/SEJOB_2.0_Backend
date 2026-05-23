@@ -496,6 +496,23 @@ export class UserService {
 
     return { success: true };
   }
+
+  async activeUser(userId: number) {
+    const user = await userRepository.findOne({ user_id: userId });
+    if (!user) {
+      throw new NotFoundError({ message: `User with ID ${userId} not found` });
+    }
+
+    await userRepository.update({
+      userId,
+      userData: {
+        is_active: !user.is_active,
+        updated_at: new Date().toISOString(),
+      } as any,
+    });
+
+    return { success: true };
+  }
 }
 
 export default new UserService();
