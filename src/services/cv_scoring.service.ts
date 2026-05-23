@@ -6,12 +6,7 @@ import { supabase } from "@/config/supabase";
 import skillMappingService from "@/services/skill_mapping.service";
 import { recoverTruncatedJson } from "@/utils/json-recovery";
 import { downloadAndParseCv } from "@/utils/cv-parser";
-import { 
-  ScoringWeights, 
-  getDynamicWeights, 
-  verifyWeights, 
-  DEFAULT_WEIGHTS 
-} from "@/config/scoring-weights";
+import { ScoringWeights, getDynamicWeights, verifyWeights, DEFAULT_WEIGHTS } from "@/config/scoring-weights";
 
 const clamp = (value: number, max: number, min: number = 0): number => Math.min(Math.max(value, min), max);
 
@@ -23,7 +18,6 @@ function escapeRegex(text: string): string {
 // ============================================================================
 // CV SCORING SERVICE
 // ============================================================================
-
 
 export class CvScoringService {
   /**
@@ -215,21 +209,54 @@ export class CvScoringService {
    */
   private scoreMajor(educations: any[], maxScore: number): { score: number; reason: string } {
     const itMajors = [
-      "công nghệ thông tin", "khoa học máy tính", "kỹ thuật phần mềm", 
-      "hệ thống thông tin", "an toàn thông tin", "mạng máy tính", 
-      "truyền thông đa phương tiện", "trí tuệ nhân tạo", "khoa học dữ liệu",
-      "computer science", "software engineering", "information technology", 
-      "information systems", "cybersecurity", "data science", "artificial intelligence",
-      "computer engineering", "web development", "mobile development", "cloud computing",
-      "software engineer", "it engineer", "cs engineer", "se engineer", "mis", "ict"
+      "công nghệ thông tin",
+      "khoa học máy tính",
+      "kỹ thuật phần mềm",
+      "hệ thống thông tin",
+      "an toàn thông tin",
+      "mạng máy tính",
+      "truyền thông đa phương tiện",
+      "trí tuệ nhân tạo",
+      "khoa học dữ liệu",
+      "computer science",
+      "software engineering",
+      "information technology",
+      "information systems",
+      "cybersecurity",
+      "data science",
+      "artificial intelligence",
+      "computer engineering",
+      "web development",
+      "mobile development",
+      "cloud computing",
+      "software engineer",
+      "it engineer",
+      "cs engineer",
+      "se engineer",
+      "mis",
+      "ict",
     ];
 
     const relatedMajors = [
-      "toán tin", "toán ứng dụng", "điện tử", "viễn thông", "kỹ thuật điện", 
-      "kỹ thuật điều khiển", "tự động hóa", "cơ điện tử", "vật lý tin học",
-      "applied mathematics", "electronics", "telecommunications", 
-      "electrical engineering", "mechatronics", "automation", "physics",
-      "business information systems", "digital marketing", "management information systems"
+      "toán tin",
+      "toán ứng dụng",
+      "điện tử",
+      "viễn thông",
+      "kỹ thuật điện",
+      "kỹ thuật điều khiển",
+      "tự động hóa",
+      "cơ điện tử",
+      "vật lý tin học",
+      "applied mathematics",
+      "electronics",
+      "telecommunications",
+      "electrical engineering",
+      "mechatronics",
+      "automation",
+      "physics",
+      "business information systems",
+      "digital marketing",
+      "management information systems",
     ];
 
     for (const edu of educations) {
@@ -349,9 +376,6 @@ export class CvScoringService {
       experienceDetails.push(`${exp.position} at ${exp.company}: ${expType} (${typeScore})`);
     }
 
-    console.log(`[E] Experience scores: ${experienceDetails.join(", ")}`);
-    console.log(`[E] Final score: ${bestScore}/${maxScore} (best of ${experiences.length} experiences)`);
-
     return { score: bestScore, details: experienceDetails.join("; ") || "No IT-related experience" };
   }
 
@@ -396,17 +420,56 @@ export class CvScoringService {
     if (!projects || projects.length === 0) return 0;
 
     const highComplexityKeywords = [
-      "microservice", "distributed system", "kubernetes", "k8s", "docker swarm",
-      "aws lambda", "serverless", "ci/cd", "jenkins", "github actions",
-      "elasticsearch", "kafka", "rabbitmq", "redis cluster", "grpc", "graphql",
-      "blockchain", "smart contract", "machine learning", "deep learning", "tensorflow",
-      "pytorch", "pwa", "web sockets", "real-time", "high availability", "scalability"
+      "microservice",
+      "distributed system",
+      "kubernetes",
+      "k8s",
+      "docker swarm",
+      "aws lambda",
+      "serverless",
+      "ci/cd",
+      "jenkins",
+      "github actions",
+      "elasticsearch",
+      "kafka",
+      "rabbitmq",
+      "redis cluster",
+      "grpc",
+      "graphql",
+      "blockchain",
+      "smart contract",
+      "machine learning",
+      "deep learning",
+      "tensorflow",
+      "pytorch",
+      "pwa",
+      "web sockets",
+      "real-time",
+      "high availability",
+      "scalability",
     ];
 
     const midComplexityKeywords = [
-      "deploy", "production", "live", "rest api", "api", "docker", "aws", "azure", 
-      "gcp", "postgresql", "mongodb", "redis", "authentication", "authorization", 
-      "oauth", "jwt", "payment", "stripe", "unit test", "integration test"
+      "deploy",
+      "production",
+      "live",
+      "rest api",
+      "api",
+      "docker",
+      "aws",
+      "azure",
+      "gcp",
+      "postgresql",
+      "mongodb",
+      "redis",
+      "authentication",
+      "authorization",
+      "oauth",
+      "jwt",
+      "payment",
+      "stripe",
+      "unit test",
+      "integration test",
     ];
 
     const basicKeywords = ["exercise", "tutorial", "homework", "assignment", "lab", "practice"];
@@ -423,9 +486,9 @@ export class CvScoringService {
     if (hasHigh) return maxScore;
     if (hasMid) return Math.round(maxScore * 0.8);
     if (hasBasic) return Math.round(maxScore * 0.4);
-    
+
     if (projects.some((p) => (p.description || "").trim().length > 50)) return Math.round(maxScore * 0.6);
-    
+
     return 0;
   }
 
@@ -442,7 +505,7 @@ export class CvScoringService {
     if (!certifications || certifications.length === 0) return 0;
 
     let certScore = 0;
-    const combinedRequirements = [...jobRequirements, ...jobSkillNames].map(r => r.toLowerCase());
+    const combinedRequirements = [...jobRequirements, ...jobSkillNames].map((r) => r.toLowerCase());
 
     for (const cert of certifications) {
       const certName = (cert.name || "").toLowerCase();
@@ -450,7 +513,7 @@ export class CvScoringService {
       const certText = `${certName} ${certOrg} ${cert.description || ""}`.toLowerCase();
 
       // Priority 1: Direct match in certification name
-      const directMatch = combinedRequirements.some(req => certName.includes(req));
+      const directMatch = combinedRequirements.some((req) => certName.includes(req));
       if (directMatch) {
         certScore = maxScore;
         break;
@@ -458,18 +521,18 @@ export class CvScoringService {
 
       // Priority 2: Famous IT Cert Organizations match
       const famousOrgs = ["aws", "microsoft", "google", "oracle", "cisco", "red hat", "comptia", "isc2"];
-      const isFamousOrg = famousOrgs.some(org => certOrg.includes(org) || certName.includes(org));
-      
+      const isFamousOrg = famousOrgs.some((org) => certOrg.includes(org) || certName.includes(org));
+
       if (isFamousOrg) {
         certScore = Math.max(certScore, Math.round(maxScore * 0.8));
       }
 
       // Priority 3: Indirect match in description
-      const indirectMatch = combinedRequirements.some(req => {
+      const indirectMatch = combinedRequirements.some((req) => {
         if (req.length <= 4) return false;
         return certText.includes(req);
       });
-      
+
       if (indirectMatch) {
         certScore = Math.max(certScore, Math.round(maxScore * 0.5));
       }
@@ -535,12 +598,17 @@ Return ONLY a JSON object:
     try {
       const response = await openaiInstance.chat.completions.create({
         model: getModel(),
-        messages: [{ role: "system", content: "You are a professional technical recruiter. Always respond in valid JSON." }, { role: "user", content: prompt }],
+        messages: [
+          { role: "system", content: "You are a professional technical recruiter. Always respond in valid JSON." },
+          { role: "user", content: prompt },
+        ],
         response_format: { type: "json_object" },
         temperature: 0.1,
+        max_tokens: 1500,
       });
 
       const rawContent = response.choices[0]?.message?.content || "{}";
+      // console.log("[CV Scoring] Raw project relevance response:", rawContent);
       const parsed = recoverTruncatedJson(rawContent) as { projects: any[] };
 
       const projectScores = parsed.projects || [];
@@ -718,31 +786,32 @@ Return ONLY a valid JSON object:
           model: getModel(),
           messages: [
             { role: "system", content: "You are a specialized CV data extraction engine. Always output valid JSON." },
-            { role: "user", content: prompt }
+            { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
           temperature: 0.1,
+          max_tokens: 2000,
         });
 
         const rawContent = response.choices[0]?.message?.content || "{}";
         const parsed = recoverTruncatedJson(rawContent);
-        console.log(`[AI Extraction] Parsed Result:`, JSON.stringify(parsed, null, 2));
+        // console.log(`[AI Extraction] Parsed Result:`, JSON.stringify(parsed, null, 2));
 
         const extractedNames: string[] = Array.isArray(parsed.skills)
           ? parsed.skills.filter((s: any) => typeof s === "string")
           : [];
 
         if (educations.length === 0 && parsed.extracted_major) {
-          console.log(`[AI Extraction] Extracted Major: ${parsed.extracted_major}`);
+          // console.log(`[AI Extraction] Extracted Major: ${parsed.extracted_major}`);
           educations.push({ degree: "AI Extracted", field_of_study: parsed.extracted_major });
         }
 
         if (projects.length === 0 && Array.isArray(parsed.projects) && parsed.projects.length > 0) {
-          console.log(`[AI Extraction] Extracted ${parsed.projects.length} projects`);
+          // console.log(`[AI Extraction] Extracted ${parsed.projects.length} projects`);
           projects = parsed.projects.map((p: any) => ({
             name: p.name || "Unnamed Project",
             description: p.description || "",
-            technologies: Array.isArray(p.technologies) ? p.technologies : []
+            technologies: Array.isArray(p.technologies) ? p.technologies : [],
           }));
         }
 
@@ -775,6 +844,7 @@ Return ONLY a valid JSON object:
             messages: [{ role: "user", content: fallbackPrompt }],
             response_format: { type: "json_object" },
             temperature: 0.1,
+            max_tokens: 1500,
           });
           const fallbackRaw = fallbackResponse.choices[0]?.message?.content || "{}";
           const fallbackParsed = recoverTruncatedJson(fallbackRaw);

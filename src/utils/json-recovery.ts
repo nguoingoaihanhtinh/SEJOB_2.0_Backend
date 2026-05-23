@@ -45,9 +45,10 @@ export function recoverTruncatedJson(raw: string): any {
     const match = s.match(/\{[\s\S]*\}/);
     if (match) return JSON.parse(match[0]);
   } catch (e: any) {
-    // console.log(`[recoverTruncatedJson] Recovery parse failed: ${e.message}`);
+    console.warn(`[recoverTruncatedJson] Recovery parse failed: ${e.message}`);
   }
 
   console.warn("[recoverTruncatedJson] All recovery attempts failed. Returning empty object.");
+  console.warn("[recoverTruncatedJson] Raw string was:", raw);
   return {};
 }
