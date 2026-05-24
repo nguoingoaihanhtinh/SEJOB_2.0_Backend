@@ -386,14 +386,24 @@ export class JobService {
   }
 
   async syncList(input: JobQueryParams) {
-    const { data: jobs, pagination } = await jobRepository.findAll(input);
+    const { data: jobs, pagination } = await jobRepository.findAll({
+      ...input,
+      is_company_active: [true, false],
+    });
     const jobES = [];
 
     for (const job of jobs) {
       jobES.push(convert.convertJobToES(job));
     }
 
-    return ESJob.bulkIndex(jobES);
+    if (jobES.length > 0) {
+      return await ESJob.bulkIndex(jobES);
+    }
+
+    return {
+      jobs,
+      pagination,
+    };
   }
 
   async syncOne(jobId: number) {
@@ -555,6 +565,11 @@ export class JobService {
                     status: "Approved",
                   },
                 },
+                {
+                  term: {
+                    "company.is_active": true,
+                  },
+                },
               ],
 
               should: [
@@ -644,6 +659,11 @@ export class JobService {
                 {
                   term: {
                     status: "Approved",
+                  },
+                },
+                {
+                  term: {
+                    "company.is_active": true,
                   },
                 },
               ],

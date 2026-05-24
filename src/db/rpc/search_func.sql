@@ -1,7 +1,7 @@
 drop function if exists public.search_job(
   text, integer, integer[], integer[], integer[], integer[],
   integer[], numeric, numeric, text, text, integer, integer, public.jobstatus[],
-  bigint[]
+  bigint[], boolean[]
 );
 
 create function public.search_job(
@@ -19,7 +19,8 @@ create function public.search_job(
   q_page integer default 1,
   q_limit integer default 10,
   q_statuses public.jobstatus[] default null,
-  q_job_ids bigint[] default null
+  q_job_ids bigint[] default null,
+  q_is_company_active boolean[] default null
 )
 returns table (
   id bigint,
@@ -113,6 +114,7 @@ as $$
       'phone', cp.phone,
       'email', cp.email,
       'is_verified', cp.is_verified,
+      'is_active', cp.is_active,
       'website_url', cp.website_url,
       'socials', cp.socials,
       'images', cp.images,
@@ -215,6 +217,7 @@ as $$
   left join companies cp on cp.id = j.company_id
   where
     (q_company_id is null or j.company_id = q_company_id)
+    and (q_is_company_active is null or cp.is_active = any(q_is_company_active))
     and (
       q_keyword is null
       OR LOWER(j.title) LIKE CONCAT('%', LOWER(TRIM(q_keyword)), '%')

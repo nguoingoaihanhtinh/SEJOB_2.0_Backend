@@ -365,6 +365,7 @@ export type Database = {
           external_id: number | null
           id: number
           images: string[] | null
+          is_active: boolean | null
           is_verified: boolean | null
           logo: string | null
           name: string
@@ -384,6 +385,7 @@ export type Database = {
           external_id?: number | null
           id?: number
           images?: string[] | null
+          is_active?: boolean | null
           is_verified?: boolean | null
           logo?: string | null
           name: string
@@ -403,6 +405,7 @@ export type Database = {
           external_id?: number | null
           id?: number
           images?: string[] | null
+          is_active?: boolean | null
           is_verified?: boolean | null
           logo?: string | null
           name?: string

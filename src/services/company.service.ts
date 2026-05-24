@@ -10,6 +10,7 @@ import { CompanyQueryAllParams, CompanyQueryParams } from "@/types/common";
 import companyBranchesRepository from "@/repositories/company_branches.repository";
 import userRepository from "@/repositories/user.repository";
 import { MessageUtil } from "@/utils/MessageUtil";
+import JobService from "@/services/jobs.service";
 
 export class CompanyService {
   async findAll(input: CompanyQueryAllParams) {
@@ -136,6 +137,10 @@ export class CompanyService {
       }
     }
 
+    await JobService.syncList({
+      company_id: companyId
+    });
+
     return updatedCompany;
   }
 
@@ -162,7 +167,6 @@ export class CompanyService {
     }
 
     const companyTypeIds = _.get(companyData, "company_types");
-    const userIsActive = _.get(companyData, "user_is_active");
 
     // Validate company_types if provided
     if (companyTypeIds && companyTypeIds.length > 0) {
@@ -175,7 +179,7 @@ export class CompanyService {
 
     const updateData = _.pickBy(
       {
-        ..._.omit(companyData, ['company_types', 'user_is_active']),
+        ..._.omit(companyData, ['company_types']),
         updated_at: companyData.updated_at || new Date().toISOString(),
       },
       (value) => value != null && value !== ""
@@ -202,16 +206,9 @@ export class CompanyService {
       }
     }
 
-    // Update user's is_active status if provided
-    if (userIsActive !== undefined && existingCompany.user_id) {
-      await userRepository.update({
-        userId: existingCompany.user_id,
-        userData: {
-          is_active: userIsActive,
-          updated_at: new Date().toISOString(),
-        },
-      });
-    }
+    await JobService.syncList({
+      company_id: companyId
+    });
 
     return updatedCompany;
   }

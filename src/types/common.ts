@@ -126,6 +126,7 @@ export interface JobQueryParams extends QueryParams {
   sort_by?: SortableJobFields;
   order?: "asc" | "desc";
   statuses?: JobStatus[];
+  is_company_active?: boolean[];
 }
 
 // CATEGORY

@@ -38,7 +38,8 @@
             }
           },
           "website_url": { "type": "keyword" },
-          "is_verified": { "type": "boolean" }
+          "is_verified": { "type": "boolean" },
+          "is_active": { "type": "boolean" }
         }
       },
 

@@ -44,11 +44,14 @@ export class JobRepository {
     const limit = _.get(input, "limit", 10);
     const hasPagination = page > 0 && limit > 0;
 
+    const is_company_active = _.get(input, 'is_company_active') || [true]
+
     const { data, error } = await supabase.rpc("search_job", {
       q_keyword: _.get(input, "keyword") || null,
       q_company_id: _.get(input, "company_id") ?? null,
       q_province_ids: convert.normalizeArray(input.province_ids),
       q_job_ids: convert.normalizeArray(input.job_ids),
+      q_is_company_active: convert.normalizeArray(is_company_active),
       q_level_ids: convert.normalizeArray(input.level_ids),
       q_category_ids: convert.normalizeArray(input.category_ids),
       q_skill_ids: convert.normalizeArray(input.skill_ids),
@@ -110,7 +113,8 @@ export class JobRepository {
         employee_count,
         user_id,
         created_at,
-        updated_at
+        updated_at,
+        is_active
       ),
       levels!left(
         id,
@@ -142,6 +146,7 @@ export class JobRepository {
       .from("jobs")
       .select(selectString)
       .eq("id", jobId)
+      .eq("company.is_active", true)
       .maybeSingle();
 
     if (jobError) throw jobError;

@@ -40,6 +40,7 @@ const convert = {
         name: job.company?.name ?? "",
         website_url: job.company?.website_url ?? "",
         is_verified: job.company?.is_verified ?? false,
+        is_active: job.company?.is_active ?? false,
       },
 
       // -------- BRANCHES --------

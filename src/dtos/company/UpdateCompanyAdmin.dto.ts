@@ -16,7 +16,7 @@ export const updateCompanyAdminSchema = z.object({
   employee_count: z.number().int("Employee count must be an integer").nullable().optional(),
   company_types: z.array(z.number()).optional(),
   is_verified: z.boolean().optional(),
-  user_is_active: z.boolean().optional(),
+  is_active: z.boolean().optional(),
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),
 });
