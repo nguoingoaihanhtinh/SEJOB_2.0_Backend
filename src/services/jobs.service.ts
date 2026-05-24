@@ -382,6 +382,8 @@ export class JobService {
       }
     }
 
+    await this.syncOne(jobId);
+
     return await this.findOne({ jobId });
   }
 

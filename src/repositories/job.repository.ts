@@ -146,12 +146,11 @@ export class JobRepository {
       .from("jobs")
       .select(selectString)
       .eq("id", jobId)
-      .eq("company.is_active", true)
       .maybeSingle();
 
     if (jobError) throw jobError;
 
-    if (!job) throw new NotFoundError({ message: `Job with ID ${jobId} not found` });
+    if (!job || !job?.company?.is_active) throw new NotFoundError({ message: `Job with ID ${jobId} not found` });
 
     return { job: job as JobAfterJoined };
   }

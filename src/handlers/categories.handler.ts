@@ -18,6 +18,8 @@ export async function getCategories(req: Request, res: Response) {
     ids: convert.split(ids as string, ",", Number),
   });
 
+  res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+
   res.status(200).json({
     success: true,
     data: categories,

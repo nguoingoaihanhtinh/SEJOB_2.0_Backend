@@ -18,6 +18,8 @@ export async function getLevels(req: Request, res: Response) {
     pagination: hasPagination !== "false",
   });
 
+  res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+
   res.status(200).json({
     success: true,
     data: levels,
