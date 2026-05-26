@@ -33,3 +33,5 @@ export const EducationService = {
     return EducationRepository.remove(id);
   },
 };
+
+export default EducationService;

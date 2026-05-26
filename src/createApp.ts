@@ -37,6 +37,7 @@ import jobNotificationSubscriptionsRoutes from "./routes/job_notification_subscr
 import skillMappingRoutes from "./routes/skill_mapping.route";
 import chatRoutes from "./routes/chat.route";
 import reviewRoutes from "./routes/reviews.route";
+import recommendationRoutes from "./routes/recommendations.route";
 import { requestLogger, errorHandler } from "@/middlewares";
 import { specs, swaggerUi } from "./config/swagger";
 import logger from "./utils/logger";
@@ -95,7 +96,7 @@ export const createApp = () => {
   app.use("/api/cvs", cvRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/applications", applicationRoutes);
-  // app.use("/api/recommendations", recommendationRoutes);
+  app.use("/api/recommendations", recommendationRoutes);
   app.use("/api/students", studentRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/chatbot", chatbotRoutes);

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import RecommendationService from "@/services/recommendation.service";
 import topicSuggestionService from "@/services/topic_suggestion.service";
+import careerAdviceService from "@/services/career_advice.service";
 import { MessageUtil } from "@/utils/MessageUtil";
 
 export class RecommendationHandler {
@@ -183,6 +184,31 @@ export class RecommendationHandler {
             res.json({
                 success: true,
                 data: topics,
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * GET /api/recommendations/career-advice
+     * Generate AI career advice for the current student
+     */
+    getCareerAdvice = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const userId = req.user?.userId;
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    message: MessageUtil.get("UNAUTHORIZED"),
+                });
+            }
+
+            const advice = await careerAdviceService.generateAdvice(userId);
+
+            res.json({
+                success: true,
+                data: advice,
             });
         } catch (error) {
             next(error);
