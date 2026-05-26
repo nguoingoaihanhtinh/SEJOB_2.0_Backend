@@ -20,4 +20,6 @@ router.get("/jobs/with-topcv", authenticate, handler.getRecommendedJobsWithTopCV
 
 router.get("/topics", authenticate, handler.getTopicSuggestions);
 
+router.get("/career-advice", authenticate, handler.getCareerAdvice);
+
 export default router;

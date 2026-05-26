@@ -15,6 +15,8 @@ export const OPENAI_MODEL = "gpt-4o-mini";
 
 /** Returns the active model name based on which key is configured. */
 export function getModel(): string {
+  if (process.env.LLM_MODEL) return process.env.LLM_MODEL;
+
   return (process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY)
     ? OPENROUTER_MODEL
     : OPENAI_MODEL;
@@ -41,11 +43,11 @@ export function getOpenAI(): OpenAI | null {
     apiKey,
     defaultHeaders: process.env.OPENROUTER_API_KEY
       ? {
-          "HTTP-Referer":
-            process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
-          "X-Title":
-            process.env.OPENROUTER_SITE_NAME || "SEJob-Recruiter-AI",
-        }
+        "HTTP-Referer":
+          process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
+        "X-Title":
+          process.env.OPENROUTER_SITE_NAME || "SEJob-Recruiter-AI",
+      }
       : undefined,
   });
 }
