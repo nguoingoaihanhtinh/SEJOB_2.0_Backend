@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getOpenAI, getModel } from "@/utils/openai";
 import jobRepository from "@/repositories/job.repository";
 import studentRepository from "@/repositories/student.repository";
@@ -6,6 +7,8 @@ import { supabase } from "@/config/supabase";
 import skillMappingService from "@/services/skill_mapping.service";
 import { recoverTruncatedJson } from "@/utils/json-recovery";
 import { downloadAndParseCv } from "@/utils/cv-parser";
+import { simpleCache } from "@/utils/cache";
+import logger from "@/utils/logger";
 import { ScoringWeights, getDynamicWeights, verifyWeights, DEFAULT_WEIGHTS } from "@/config/scoring-weights";
 
 const clamp = (value: number, max: number, min: number = 0): number => Math.min(Math.max(value, min), max);
@@ -14,6 +17,41 @@ const clamp = (value: number, max: number, min: number = 0): number => Math.min(
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+const C2_CACHE_TTL = 24 * 60 * 60 * 1000;
+const EXTRACTION_CACHE_TTL = 30 * 60 * 1000;
+const MIN_SKILLS_FOR_SKIP = 3;
+
+function hashCode(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+const extractionSchema = z.object({
+  skills: z.array(z.string()).default([]),
+  extracted_major: z.string().nullable().default(null),
+  experience_level: z.string().nullable().default(null),
+  has_it_cert: z.boolean().default(false),
+  projects: z.array(z.object({
+    name: z.string().default(""),
+    description: z.string().default(""),
+    technologies: z.array(z.string()).default([]),
+  })).default([]),
+});
+
+const relevanceProjectSchema = z.object({
+  project_index: z.number(),
+  relevance_score: z.number(),
+  reason: z.string().default(""),
+});
+
+const relevanceSchema = z.object({
+  projects: z.array(relevanceProjectSchema).default([]),
+});
 
 // ============================================================================
 // CV SCORING SERVICE
@@ -209,26 +247,40 @@ export class CvScoringService {
    */
   private scoreMajor(educations: any[], maxScore: number): { score: number; reason: string } {
     const itMajors = [
+      // Vietnamese
       "công nghệ thông tin",
       "khoa học máy tính",
       "kỹ thuật phần mềm",
+      "công nghệ phần mềm",
       "hệ thống thông tin",
+      "hệ thống thông tin quản lý",
       "an toàn thông tin",
       "mạng máy tính",
+      "máy tính",
       "truyền thông đa phương tiện",
+      "công nghệ đa phương tiện",
       "trí tuệ nhân tạo",
       "khoa học dữ liệu",
+      "phân tích dữ liệu",
+      "kỹ thuật máy tính",
+      "khoa học dữ liệu và trí tuệ nhân tạo",
+      "thương mại điện tử",
+      "kỹ thuật dữ liệu",
+      // English
       "computer science",
       "software engineering",
       "information technology",
       "information systems",
+      "management information systems",
       "cybersecurity",
       "data science",
+      "data analytics",
       "artificial intelligence",
       "computer engineering",
       "web development",
       "mobile development",
       "cloud computing",
+      "ui/ux",
       "software engineer",
       "it engineer",
       "cs engineer",
@@ -259,24 +311,48 @@ export class CvScoringService {
       "management information systems",
     ];
 
-    for (const edu of educations) {
-      const field = (edu.field_of_study || "").toLowerCase().trim();
-      const degree = (edu.degree || "").toLowerCase().trim();
-      const combined = `${degree} ${field}`.trim();
+    // UIT-related school names that indicate an IT university background
+    const itSchools = [
+      "university of information technology",
+      "đại học công nghệ thông tin",
+      "uit",
+      "trường đại học công nghệ thông tin",
+      "vnuhcm",
+    ];
 
-      if (!combined) continue;
+    for (const edu of educations) {
+      const major = (edu.major || "").toLowerCase().trim();
+      const degree = (edu.degree || "").toLowerCase().trim();
+      const school = (edu.school || "").toLowerCase().trim();
+      const combined = `${degree} ${major}`.trim();
+      const isItSchool = itSchools.some((kw) => school.includes(kw));
+
+      if (!combined && !isItSchool) continue;
+      if (!combined) {
+        return {
+          score: Math.round(maxScore * 0.6),
+          reason: `UIT school, major unspecified: "${edu.school || "School"}"`,
+        };
+      }
 
       if (itMajors.some((kw) => combined.includes(kw))) {
         return {
           score: maxScore,
-          reason: `IT major: "${edu.degree || "Degree"} in ${edu.field_of_study || "Field"}"`,
+          reason: `IT major: "${edu.degree || "Degree"} in ${edu.major || "Major"}"`,
         };
       }
 
       if (relatedMajors.some((kw) => combined.includes(kw))) {
         return {
           score: Math.round(maxScore * 0.6),
-          reason: `Related field: "${edu.degree || "Degree"} in ${edu.field_of_study || "Field"}"`,
+          reason: `Related field: "${edu.degree || "Degree"} in ${edu.major || "Major"}"`,
+        };
+      }
+
+      if (isItSchool) {
+        return {
+          score: Math.round(maxScore * 0.6),
+          reason: `IT school (${edu.school}), major may not be standard IT`,
         };
       }
     }
@@ -543,7 +619,8 @@ export class CvScoringService {
 
   /**
    * C2. Project Relevance — 10đ
-   * Uses OpenAI to score project relevance to the job.
+   * Uses deterministic keyword overlap with AI fallback.
+   * AI result is cached for 24h per (job × project set).
    */
   private async scoreProjectRelevance(
     job: any,
@@ -553,87 +630,146 @@ export class CvScoringService {
     if (!projects || projects.length === 0) return { score: 0, details: "No projects" };
     if (!job.title) return { score: 0, details: "Missing job title" };
 
-    const prompt = `
-You are a senior technical recruiter evaluating how relevant a candidate's projects are to a specific job opening.
+    const cacheKey = `cv_c2:${job.id}:${hashCode(projects.map((p) => `${p.name}|${p.description || ""}`).join("||"))}`;
+    const cached = simpleCache.get<{ score: number; details: string }>(cacheKey);
+    if (cached) return cached;
 
-### JOB CONTEXT
-- **Title**: ${job.title}
-- **Description**: ${job.description || "N/A"}
-- **Key Requirements**: ${(job.requirement || job.requirements || []).join(", ")}
+    const result = await this.callAIOrFallback(job, projects, maxScore);
+    simpleCache.set(cacheKey, result, C2_CACHE_TTL);
+    return result;
+  }
 
-### CANDIDATE PROJECTS
-${projects
-  .map(
-    (p, i) => `
-PROJECT #${i + 1}: ${p.name}
-- **Description**: ${p.description || "No description provided"}
-- **Technologies**: ${(p.technologies || []).join(", ")}
-`,
-  )
-  .slice(0, 5)
-  .join("\n")}
+  private async callAIOrFallback(
+    job: any,
+    projects: any[],
+    maxScore: number,
+  ): Promise<{ score: number; details: string }> {
+    const openai = getOpenAI();
+    if (!openai) return this.scoreProjectRelevanceDeterministic(job, projects, maxScore);
 
-### EVALUATION CRITERIA
-Rate each project on a scale of 0 to 10 based on:
-1. **Technical Alignment**: Does it use the same stack or solve similar technical problems?
-2. **Domain Alignment**: Is it in the same industry or functional area?
-3. **Complexity**: Does it demonstrate professional-grade work vs. simple tutorial output?
+    const prompt = [
+      `Job: ${job.title}`,
+      `Requirements: ${((job.requirement || job.requirements || []) as string[]).join(", ")}`,
+      `Projects:`,
+      ...projects.slice(0, 5).map(
+        (p, i) =>
+          `[${i + 1}] ${p.name} | ${(p.description || "").substring(0, 200)} | Tech: ${(p.technologies || []).join(", ")}`,
+      ),
+      `Rate each 0-10 on tech alignment & complexity. Return JSON: {"projects":[{"project_index":N,"relevance_score":N,"reason":"..."}]}`,
+    ].join("\n");
 
-### RESPONSE FORMAT
-Return ONLY a JSON object:
-{
-  "projects": [
-    { 
-      "project_index": 1, 
-      "relevance_score": 8, 
-      "reason": "Uses core stack (React/Node) and solves similar high-traffic problems." 
-    }
-  ]
-}
-`.trim();
+    const attempt = async (): Promise<{ score: number; details: string } | null> => {
+      try {
+        const response = await openai.chat.completions.create({
+          model: getModel(),
+          messages: [
+            { role: "system", content: "You are a technical recruiter. Return valid JSON only." },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+          max_tokens: 800,
+        });
 
-    const openaiInstance = getOpenAI();
-    if (!openaiInstance) return { score: 0, details: "AI not available" };
+        const raw = response.choices[0]?.message?.content;
+        if (!raw) return null;
 
-    try {
-      const response = await openaiInstance.chat.completions.create({
-        model: getModel(),
-        messages: [
-          { role: "system", content: "You are a professional technical recruiter. Always respond in valid JSON." },
-          { role: "user", content: prompt },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-        max_tokens: 1500,
-      });
+        const parsed = relevanceSchema.parse(recoverTruncatedJson(raw));
+        if (!parsed.projects || parsed.projects.length === 0) return null;
 
-      const rawContent = response.choices[0]?.message?.content || "{}";
-      // console.log("[CV Scoring] Raw project relevance response:", rawContent);
-      const parsed = recoverTruncatedJson(rawContent) as { projects: any[] };
-
-      const projectScores = parsed.projects || [];
-      if (projectScores.length === 0) return { score: 0, details: "AI returned no project scores" };
-
-      let bestScore = 0;
-      let reasons: string[] = [];
-
-      projectScores.forEach((ps: any) => {
-        const sc = ps.relevance_score || 0;
-        const normalizedScore = (sc / 10) * maxScore;
-        if (normalizedScore > bestScore) {
-          bestScore = normalizedScore;
+        let bestScore = 0;
+        const reasons: string[] = [];
+        for (const p of parsed.projects) {
+          const normalized = (p.relevance_score / 10) * maxScore;
+          if (normalized > bestScore) bestScore = normalized;
+          reasons.push(`P${p.project_index}: ${p.relevance_score}/10 (${p.reason})`);
         }
-        reasons.push(`P${ps.project_index}: ${sc}/10 (${ps.reason})`);
-      });
 
-      return {
-        score: Math.round(bestScore),
-        details: reasons.join(" | "),
-      };
-    } catch (err: any) {
-      console.warn("OpenAI project relevance extraction failed:", err.message);
-      return { score: 0, details: "AI extraction failed" };
+        return { score: Math.round(bestScore), details: reasons.join(" | ") };
+      } catch {
+        return null;
+      }
+    };
+
+    const aiResult = await attempt();
+    if (aiResult) return aiResult;
+
+    await new Promise((r) => setTimeout(r, 1000));
+    const retryResult = await attempt();
+    if (retryResult) return retryResult;
+
+    logger.warn("[CV Scoring] C2 AI failed, using deterministic fallback");
+    return this.scoreProjectRelevanceDeterministic(job, projects, maxScore);
+  }
+
+  private scoreProjectRelevanceDeterministic(
+    job: any,
+    projects: any[],
+    maxScore: number,
+  ): { score: number; details: string } {
+    const jobReqs = [
+      ...((job.requirement || job.requirements || []) as string[]),
+      ...((job.skills || []).map((s: any) => s.name)),
+    ].map((r: string) => r.toLowerCase());
+
+    if (jobReqs.length === 0) return { score: 0, details: "No job requirements to compare" };
+
+    let bestOverlap = 0;
+    for (const p of projects) {
+      const techText = [
+        ...(p.technologies || []),
+        ...(p.description || "").toLowerCase().split(/[\s,;]+/),
+      ].filter(Boolean);
+      const overlap = jobReqs.filter((req: string) => techText.some((t: string) => t.includes(req))).length;
+      bestOverlap = Math.max(bestOverlap, overlap);
     }
+
+    const ratio = Math.min(bestOverlap / 3, 1);
+    return {
+      score: Math.round(ratio * maxScore),
+      details: `Deterministic overlap: ${bestOverlap} keywords matched (${Math.round(ratio * 100)}%)`,
+    };
+  }
+
+  /**
+   * B2. Course/Skills Mapping — 15đ
+   * Cross-references the student's education fields with job requirements
+   * via the skill-mapping table. GPA parsed from description boosts the score.
+   */
+  private async scoreCourses(
+    educations: any[],
+    jobRequirements: string[],
+    maxScore: number,
+  ): Promise<number> {
+    if (!educations || educations.length === 0) return 0;
+    if (!jobRequirements || jobRequirements.length === 0) return maxScore;
+
+    const fields = educations.map((e) => [e.major, e.degree].filter(Boolean)).flat() as string[];
+    if (fields.length === 0) return 0;
+
+    const expanded = await skillMappingService.expandSkills(fields);
+
+    const matched = jobRequirements.filter((req) =>
+      expanded.some((exp) => exp.includes(req.toLowerCase()) || req.toLowerCase().includes(exp)),
+    );
+
+    const baseRatio = jobRequirements.length > 0 ? matched.length / jobRequirements.length : 1;
+
+    // GPA boost: parse GPA from education description (e.g. "GPA: 3.5/4.0", "3.2/4", "gpa 3.8")
+    let gpaMultiplier = 1;
+    for (const edu of educations) {
+      const desc = (edu.description || "").toLowerCase();
+      const gpaMatch = desc.match(/(\d+\.?\d*)\s*\/\s*4\.?0?/) || desc.match(/gpa[:\s]*(\d+\.?\d*)/);
+      if (gpaMatch) {
+        const gpa = parseFloat(gpaMatch[1]!);
+        if (gpa >= 2.0 && gpa <= 4.0) {
+          gpaMultiplier = Math.max(gpaMultiplier, 0.5 + (gpa / 4.0) * 0.5);
+        }
+      }
+    }
+
+    const score = Math.round(Math.min(baseRatio, 1) * maxScore * gpaMultiplier);
+    return Math.min(score, maxScore);
   }
 
   // ==========================================================================
@@ -736,130 +872,116 @@ Return ONLY a JSON object:
 
     // --- 5. AI Scan for Candidate's Common Skills & Categories ---
     let aiExtractedSkillIds: number[] = [];
-    let cvText = `
---- CANDIDATE TEXT PROFILES ---
-About: ${(student as any)?.about || "N/A"}
-Experiences: ${experiences.map((e) => `${e.position} ${e.description}`).join(" ")}
-Projects: ${projects.map((p) => `${p.name} ${p.description}`).join(" ")}
-Platform Explicit Skills: ${expandedCandidateSkills.join(", ")}
 
---- RAW PDF RESUME EXTRACT (CRITICAL PRIORITY) ---
-${pdfText.substring(0, 10000)}
---- END PDF RESUME ---
-    `.trim();
+    const hasUsefulEducation = educations.some(
+      (e) => e.major || e.degree,
+    );
+    const hasSufficientData = (student?.skills?.length || 0) >= MIN_SKILLS_FOR_SKIP
+      && experiences.length > 0
+      && hasUsefulEducation;
 
-    const openaiInstance = getOpenAI();
+    const extractionCacheKey = student
+      ? `cv_extract:${userId}:${hashCode(`${expandedCandidateSkills.join(",")}|${experiences.length}|${projects.length}|${certifications.length}`)}`
+      : null;
 
-    if (openaiInstance && cvText.length > 20 && commonSkills.length > 0) {
-      const skillNamesList = commonSkills.map((s) => s.name).join(", ");
-      const prompt = `
-Analyze the following CV content to extract key professional attributes.
+    if (extractionCacheKey) {
+      const cached = simpleCache.get<number[]>(extractionCacheKey);
+      if (cached) {
+        aiExtractedSkillIds = cached;
+      }
+    }
 
-### CV CONTENT
-${cvText.substring(0, 6000)}
+    if (aiExtractedSkillIds.length === 0 && !hasSufficientData) {
+      const cvText = [
+        `About: ${(student as any)?.about || "N/A"}`,
+        ...experiences.map((e) => `${e.position} ${e.description}`),
+        ...projects.map((p) => `${p.name} ${p.description}`),
+        `Skills: ${expandedCandidateSkills.join(", ")}`,
+        pdfText.length > 20 ? `\n--- PDF EXTRACT ---\n${pdfText.substring(0, 6000)}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-### EXTRACTION GOALS
-1. **Skills**: Identify all skills mentioned that exist in the provided "Valid Skills" list. Match synonyms (e.g., "ReactJS" -> "React").
-2. **Major**: Identify the candidate's primary field of study (e.g., "Software Engineering", "Marketing").
-3. **Experience Level**: Determine the overall role type: "internship", "full-time", "part-time", or "freelance".
-4. **IT Certification**: Does the candidate possess any IT-related professional certifications?
-5. **Projects**: Extract up to 3 notable projects including their name, description, and key technologies used.
+      const openaiInstance = getOpenAI();
 
-### VALID SKILLS LIST (Use EXACT names)
-${skillNamesList}
+      if (openaiInstance && cvText.length > 20 && commonSkills.length > 0) {
+        const skillNamesList = commonSkills.map((s) => s.name).join(", ");
+        const prompt = [
+          `Extract skills matching the Valid Skills list from this CV.`,
+          `If data is sparse, extract major, experience_level, has_it_cert, and up to 3 projects.`,
+          `Valid Skills: ${skillNamesList}`,
+          `CV:\n${cvText.substring(0, 5000)}`,
+          `Return JSON: {"skills":[],"extracted_major":null,"experience_level":null,"has_it_cert":false,"projects":[]}`,
+        ].join("\n");
 
-### RESPONSE FORMAT
-Return ONLY a valid JSON object:
-{
-  "skills": ["Skill Name 1", "Skill Name 2"],
-  "extracted_major": "Field name",
-  "experience_level": "one of the types",
-  "has_it_cert": true,
-  "projects": [
-    { "name": "Project Name", "description": "What it does", "technologies": ["Tech A", "Tech B"] }
-  ]
-}
-`.trim();
+        const attempt = async (): Promise<any | null> => {
+          try {
+            const response = await openaiInstance.chat.completions.create({
+              model: getModel(),
+              messages: [
+                { role: "system", content: "You extract structured data from CVs. Return valid JSON." },
+                { role: "user", content: prompt },
+              ],
+              response_format: { type: "json_object" },
+              temperature: 0.1,
+              max_tokens: 1500,
+            });
+            const raw = response.choices[0]?.message?.content;
+            if (!raw) return null;
+            return extractionSchema.parse(recoverTruncatedJson(raw));
+          } catch {
+            return null;
+          }
+        };
 
-      try {
-        const response = await openaiInstance.chat.completions.create({
-          model: getModel(),
-          messages: [
-            { role: "system", content: "You are a specialized CV data extraction engine. Always output valid JSON." },
-            { role: "user", content: prompt },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.1,
-          max_tokens: 2000,
-        });
-
-        const rawContent = response.choices[0]?.message?.content || "{}";
-        const parsed = recoverTruncatedJson(rawContent);
-        // console.log(`[AI Extraction] Parsed Result:`, JSON.stringify(parsed, null, 2));
-
-        const extractedNames: string[] = Array.isArray(parsed.skills)
-          ? parsed.skills.filter((s: any) => typeof s === "string")
-          : [];
-
-        if (educations.length === 0 && parsed.extracted_major) {
-          // console.log(`[AI Extraction] Extracted Major: ${parsed.extracted_major}`);
-          educations.push({ degree: "AI Extracted", field_of_study: parsed.extracted_major });
-        }
-
-        if (projects.length === 0 && Array.isArray(parsed.projects) && parsed.projects.length > 0) {
-          // console.log(`[AI Extraction] Extracted ${parsed.projects.length} projects`);
-          projects = parsed.projects.map((p: any) => ({
-            name: p.name || "Unnamed Project",
-            description: p.description || "",
-            technologies: Array.isArray(p.technologies) ? p.technologies : [],
-          }));
-        }
-
-        if (experiences.length === 0 && parsed.experience_level && parsed.experience_level !== "none") {
-          experiences.push({
-            position: "AI Extracted Role",
-            company: "CV Reference",
-            description: parsed.experience_level,
-          });
-        }
-
-        if (certifications.length === 0 && parsed.has_it_cert) {
-          certifications.push({ name: "AI Extracted IT Certification" });
-        }
-
-        aiExtractedSkillIds = extractedNames
-          .map((name) => {
-            const match = commonSkills.find((cs) => cs.name.toLowerCase() === name.toLowerCase().trim());
-            return match?.id ?? null;
-          })
-          .filter((id): id is number => id !== null);
-      } catch (err: any) {
-        console.warn("OpenAI common_skills extraction failed:", err.message);
-
-        // FALLBACK: Try a simpler skills-only prompt
-        try {
-          const fallbackPrompt = `Extract skills from this CV. Return JSON: {"skills":["..."]}. Only use names from this list: ${skillNamesList}\n\nCV:\n${cvText.substring(0, 5000)}`;
-          const fallbackResponse = await openaiInstance.chat.completions.create({
-            model: getModel(),
-            messages: [{ role: "user", content: fallbackPrompt }],
-            response_format: { type: "json_object" },
-            temperature: 0.1,
-            max_tokens: 1500,
-          });
-          const fallbackRaw = fallbackResponse.choices[0]?.message?.content || "{}";
-          const fallbackParsed = recoverTruncatedJson(fallbackRaw);
-          const fallbackNames: string[] = Array.isArray(fallbackParsed.skills)
-            ? fallbackParsed.skills.filter((s: any) => typeof s === "string")
+        const parsed = await attempt();
+        if (parsed) {
+          const extractedNames: string[] = Array.isArray(parsed.skills)
+            ? parsed.skills.filter((s: any) => typeof s === "string")
             : [];
 
-          aiExtractedSkillIds = fallbackNames
+          if (parsed.extracted_major && !hasUsefulEducation) {
+            if (educations.length === 0) {
+              educations.push({ degree: "AI Extracted", major: parsed.extracted_major, school: "UIT (AI)" });
+            } else {
+              educations = educations.map((e) =>
+                e.major || e.degree
+                  ? e
+                  : { ...e, major: parsed.extracted_major },
+              );
+            }
+          }
+
+          if (projects.length === 0 && Array.isArray(parsed.projects) && parsed.projects.length > 0) {
+            projects = parsed.projects.map((p: any) => ({
+              name: p.name || "Unnamed Project",
+              description: p.description || "",
+              technologies: Array.isArray(p.technologies) ? p.technologies : [],
+            }));
+          }
+
+          if (experiences.length === 0 && parsed.experience_level && parsed.experience_level !== "none") {
+            experiences.push({
+              position: "AI Extracted Role",
+              company: "CV Reference",
+              description: parsed.experience_level,
+            });
+          }
+
+          if (certifications.length === 0 && parsed.has_it_cert) {
+            certifications.push({ name: "AI Extracted IT Certification" });
+          }
+
+          aiExtractedSkillIds = extractedNames
             .map((name) => {
               const match = commonSkills.find((cs) => cs.name.toLowerCase() === name.toLowerCase().trim());
               return match?.id ?? null;
             })
             .filter((id): id is number => id !== null);
-        } catch (fallbackErr: any) {
-          console.warn("[CV Scoring] Fallback extraction also failed:", fallbackErr.message);
+
+          if (extractionCacheKey) {
+            simpleCache.set(extractionCacheKey, aiExtractedSkillIds, EXTRACTION_CACHE_TTL);
+          }
         }
       }
     }
@@ -892,10 +1014,6 @@ Return ONLY a valid JSON object:
     const weights = getDynamicWeights(hasProjects);
     verifyWeights(weights);
 
-    // console.log(
-    //   `[CV Scoring] Weights: hasProjects=${hasProjects}, A1=${weights.A1_REQUIRED}, B1=${weights.B1_MAJOR}, C2=${weights.C2_PROJECT_RELEVANCE}, D=${weights.D_CERTIFICATIONS}, E=${weights.E_EXPERIENCE}`,
-    // );
-
     // --- 8. Score Each Component ---
 
     // A1. Required Skills Match
@@ -915,9 +1033,8 @@ Return ONLY a valid JSON object:
     const b1Result = this.scoreMajor(educations, weights.B1_MAJOR);
     const b1Score = clamp(b1Result.score, weights.B1_MAJOR);
 
-    // B2. Course Mapping — temporary logic
-    // If student has IT major (b1Score === weights.B1_MAJOR), give full 15 points
-    const b2Score = b1Score === weights.B1_MAJOR ? weights.B2_COURSES : 0;
+    // B2. Course/Skills Mapping — real cross-reference via skill_mapping table
+    const b2Score = await this.scoreCourses(educations, jobRequirements, weights.B2_COURSES);
 
     // C1. Project Count
     const c1Score = hasProjects
@@ -957,7 +1074,7 @@ Return ONLY a valid JSON object:
     const componentSum =
       a1Score + a2Score + a3Score + b1Score + b2Score + c1Score + c2Score + c3Score + dScore + eScore;
     if (componentSum > 100) {
-      console.error(`[CV Scoring] BUG: Component sum ${componentSum} exceeds 100! Clamping applied.`);
+      logger.error(`[CV Scoring] BUG: Component sum ${componentSum} exceeds 100! Clamping applied.`);
     }
 
     // --- 10. Generate Analysis ---
@@ -1012,7 +1129,7 @@ Return ONLY a valid JSON object:
         })
         .eq("id", applicationId);
     } catch (dbError) {
-      console.error("Failed to persist score to db", dbError);
+      logger.error("Failed to persist score to db", dbError);
     }
 
     return {
@@ -1029,7 +1146,7 @@ Return ONLY a valid JSON object:
         ai_skill_ids_extracted: aiExtractedSkillIds,
         pdf_text_length: pdfText.length,
         common_skills_in_db: commonSkills.length,
-        ai_extraction_ran: openaiInstance !== null && cvText.length > 20 && commonSkills.length > 0,
+        ai_extraction_ran: aiExtractedSkillIds.length > 0,
         has_projects: hasProjects,
         dynamic_weights_applied: !hasProjects,
       },
@@ -1097,7 +1214,7 @@ Return ONLY a valid JSON object:
         courses: {
           score: scores.b2,
           max: weights.B2_COURSES,
-          note: "Temporary logic: full points if IT major",
+          note: "Skill-mapping based: education fields × job requirement overlap",
         },
         total: {
           score: scores.b1 + scores.b2,

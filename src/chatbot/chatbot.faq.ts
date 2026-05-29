@@ -266,6 +266,208 @@ export const FAQ_DB: FAQ[] = [
     roles: ["Admin"],
     category: "admin",
   },
+
+  // ─────────────────────────────────────────────
+  // VIETNAMESE (parallel entries, all roles)
+  // ─────────────────────────────────────────────
+  // --- GENERAL ---
+  {
+    id: "vi-gen-1",
+    question: "SEJobs là gì?",
+    answer:
+      "SEJobs là nền tảng việc làm kết nối sinh viên và người mới tốt nghiệp với nhà tuyển dụng. Bạn có thể tìm kiếm việc làm, ứng tuyển và nhận gợi ý việc làm thông minh dựa trên hồ sơ của mình.",
+    keywords: ["sejobs là gì", "giới thiệu", "nền tảng", "về sejobs", "sejobs là"],
+    roles: [],
+    category: "general",
+  },
+  {
+    id: "vi-gen-2",
+    question: "SEJobs có miễn phí không?",
+    answer:
+      "Có! Tạo tài khoản, tìm việc và ứng tuyển hoàn toàn miễn phí cho sinh viên. Nhà tuyển dụng có gói miễn phí và các tùy chọn cao cấp cho tin tuyển dụng nổi bật.",
+    keywords: ["miễn phí", "giá", "phí", "chi phí", "có mất tiền không", "free"],
+    roles: [],
+    category: "general",
+  },
+  {
+    id: "vi-gen-3",
+    question: "Làm thế nào để tạo tài khoản?",
+    answer:
+      "Nhấn nút 'Đăng ký' ở góc trên bên phải. Điền email, mật khẩu và chọn vai trò (Sinh viên hoặc Nhà tuyển dụng). Bạn sẽ nhận được email xác thực để kích hoạt tài khoản.",
+    keywords: ["đăng ký", "tạo tài khoản", "đăng kí", "làm sao để tạo tài khoản"],
+    roles: [],
+    category: "account",
+  },
+  {
+    id: "vi-gen-4",
+    question: "Tôi quên mật khẩu. Làm thế nào để đặt lại?",
+    answer:
+      "Vào trang Đăng nhập và nhấn 'Quên mật khẩu'. Nhập email đã đăng ký, chúng tôi sẽ gửi link đặt lại mật khẩu có hiệu lực trong 30 phút.",
+    keywords: ["quên mật khẩu", "reset mật khẩu", "đặt lại mật khẩu", "không vào được", "quen mat khau"],
+    roles: [],
+    category: "account",
+  },
+  {
+    id: "vi-gen-5",
+    question: "Làm thế nào để liên hệ hỗ trợ?",
+    answer:
+      "Bạn có thể liên hệ đội hỗ trợ qua email support@sejobs.com hoặc widget chat trực tiếp ở góc dưới bên phải mỗi trang. Chúng tôi thường phản hồi trong vòng 24 giờ.",
+    keywords: ["liên hệ", "hỗ trợ", "trợ giúp", "email hỗ trợ", "lien he", "ho tro"],
+    roles: [],
+    category: "general",
+  },
+
+  // --- JOBS ---
+  {
+    id: "vi-job-1",
+    question: "Làm thế nào để tìm kiếm việc làm?",
+    answer:
+      "Sử dụng thanh tìm kiếm trên trang chủ hoặc trang Việc làm. Bạn có thể lọc theo từ khóa, địa điểm, ngành nghề, loại hình, mức lương và kỹ năng yêu cầu. Nhấn Enter hoặc 'Tìm kiếm' để xem kết quả.",
+    keywords: ["tìm việc", "tìm kiếm việc làm", "tìm job", "việc làm", "tim viec", "job"],
+    roles: ["Guest", "Student"],
+    category: "jobs",
+  },
+  {
+    id: "vi-job-2",
+    question: "Làm thế nào để ứng tuyển?",
+    answer:
+      "Mở tin tuyển dụng và nhấn nút 'Ứng tuyển ngay'. Bạn cần đăng nhập với vai trò Sinh viên. Chọn CV muốn gửi, thêm thư xin việc (tùy chọn) và xác nhận ứng tuyển.",
+    keywords: ["ứng tuyển", "nộp đơn", "apply", "ứng tuyển việc làm", "cách ứng tuyển", "ung tuyen"],
+    roles: ["Student"],
+    category: "jobs",
+  },
+  {
+    id: "vi-job-3",
+    question: "Tôi có thể theo dõi đơn ứng tuyển không?",
+    answer:
+      "Có! Vào Dashboard → Đơn ứng tuyển. Bạn sẽ thấy tất cả đơn đã nộp kèm trạng thái: Đang chờ, Đã xem, Phỏng vấn, Đã nhận hoặc Từ chối.",
+    keywords: ["theo dõi đơn", "trạng thái ứng tuyển", "đơn ứng tuyển", "các đơn đã nộp", "theo doi"],
+    roles: ["Student"],
+    category: "jobs",
+  },
+  {
+    id: "vi-job-4",
+    question: "Gợi ý việc làm hoạt động thế nào?",
+    answer:
+      "AI của chúng tôi phân tích kỹ năng, kinh nghiệm và học vấn trong hồ sơ của bạn, sau đó đối sánh với các việc làm đang tuyển dụng. Hồ sơ càng đầy đủ, gợi ý càng chính xác.",
+    keywords: ["gợi ý việc làm", "đề xuất", "gợi ý", "recommendation", "gợi ý công việc", "gợi ý job"],
+    roles: ["Student"],
+    category: "jobs",
+  },
+  {
+    id: "vi-job-5",
+    question: "Làm thế nào để lưu việc làm để xem sau?",
+    answer:
+      "Nhấn vào biểu tượng bookmark trên thẻ tin tuyển dụng hoặc trang chi tiết. Các việc đã lưu xuất hiện trong Dashboard → Việc làm đã lưu.",
+    keywords: ["lưu việc làm", "bookmark", "việc làm đã lưu", "lưu job", "xem sau"],
+    roles: ["Student"],
+    category: "jobs",
+  },
+
+  // --- PROFILE & CV ---
+  {
+    id: "vi-prof-1",
+    question: "Làm thế nào để cập nhật hồ sơ?",
+    answer:
+      "Đăng nhập và nhấn vào avatar → Hồ sơ. Bạn có thể chỉnh sửa thông tin cá nhân, kỹ năng, học vấn, kinh nghiệm, dự án và các liên kết mạng xã hội.",
+    keywords: ["cập nhật hồ sơ", "chỉnh sửa hồ sơ", "hồ sơ", "profile", "thông tin cá nhân", "cap nhat ho so"],
+    roles: ["Student"],
+    category: "profile",
+  },
+  {
+    id: "vi-prof-2",
+    question: "Làm thế nào để tạo hoặc tải lên CV?",
+    answer:
+      "Vào Dashboard → CV. Bạn có thể tải lên CV dạng PDF hoặc sử dụng trình tạo CV trực tuyến để tạo CV từ dữ liệu hồ sơ có sẵn.",
+    keywords: ["cv", "tải lên cv", "tạo cv", "upload cv", "resume", "sơ yếu lý lịch"],
+    roles: ["Student"],
+    category: "profile",
+  },
+  {
+    id: "vi-prof-3",
+    question: "Chấm điểm CV hoạt động như thế nào?",
+    answer:
+      "AI của chúng tôi phân tích CV của bạn dựa trên yêu cầu công việc. Điểm được tính dựa trên kỹ năng phù hợp, học vấn (ưu tiên ngành IT), độ phức tạp dự án và kinh nghiệm làm việc.",
+    keywords: ["chấm điểm cv", "điểm cv", "cv score", "cách tính điểm", "chấm điểm", "scoring"],
+    roles: ["Student"],
+    category: "profile",
+  },
+  {
+    id: "vi-prof-4",
+    question: "Làm thế nào để thêm kỹ năng vào hồ sơ?",
+    answer:
+      "Trong trang Hồ sơ, kéo đến mục Kỹ năng và nhấn '+Thêm kỹ năng'. Tìm kiếm từ cơ sở dữ liệu hoặc nhập kỹ năng tùy chỉnh, sau đó lưu lại.",
+    keywords: ["thêm kỹ năng", "kỹ năng", "skill", "thêm skill", "cập nhật kỹ năng"],
+    roles: ["Student"],
+    category: "profile",
+  },
+
+  // --- CHAT & NOTIFICATIONS ---
+  {
+    id: "vi-feat-1",
+    question: "Làm thế nào để chat với nhà tuyển dụng?",
+    answer:
+      "Sinh viên có thể nhắn tin cho nhà tuyển dụng sau khi ứng tuyển. Nhà tuyển dụng có thể chủ động chat với ứng viên từ Dashboard. Tìm biểu tượng tin nhắn trong chi tiết đơn ứng tuyển để bắt đầu.",
+    keywords: ["chat", "nhắn tin", "tin nhắn", "liên hệ nhà tuyển dụng", "message", "trò chuyện"],
+    roles: ["Student", "Employer"],
+    category: "general",
+  },
+  {
+    id: "vi-feat-2",
+    question: "Làm sao để biết có tin nhắn hoặc cập nhật mới?",
+    answer:
+      "SEJobs gửi thông báo trực tiếp trên trình duyệt khi bạn có tin nhắn mới hoặc trạng thái đơn ứng tuyển thay đổi. Chúng tôi cũng gửi email tự động để bạn không bỏ lỡ cập nhật quan trọng.",
+    keywords: ["thông báo", "email thông báo", "cập nhật", "tin nhắn mới", "notifications"],
+    roles: ["Student", "Employer"],
+    category: "general",
+  },
+
+  // --- EMPLOYER ---
+  {
+    id: "vi-emp-1",
+    question: "Làm thế nào để đăng tin tuyển dụng?",
+    answer:
+      "Đăng nhập tài khoản Nhà tuyển dụng, vào Dashboard → Đăng tin. Điền tiêu đề, mô tả, yêu cầu, mức lương và địa điểm, sau đó nhấn 'Đăng'. Tin mới sẽ được duyệt trong vòng 24 giờ.",
+    keywords: ["đăng tin", "đăng tuyển", "tin tuyển dụng", "đăng job", "tạo tin tuyển dụng"],
+    roles: ["Employer"],
+    category: "employer",
+  },
+  {
+    id: "vi-emp-2",
+    question: "Làm thế nào để quản lý đơn ứng tuyển?",
+    answer:
+      "Trong Dashboard → Đơn ứng tuyển, bạn xem tất cả ứng viên đã nộp đơn. Lọc theo công việc, trạng thái hoặc ngày. Nhấn vào ứng viên để xem hồ sơ và CV, sau đó cập nhật trạng thái.",
+    keywords: ["quản lý đơn", "ứng viên", "candidates", "xem đơn ứng tuyển", "duyệt đơn"],
+    roles: ["Employer"],
+    category: "employer",
+  },
+  {
+    id: "vi-emp-3",
+    question: "Làm thế nào để xác thực công ty?",
+    answer:
+      "Gửi giấy tờ đăng ký kinh doanh trong Dashboard → Hồ sơ công ty → tab Xác thực. Đội ngũ admin xem xét trong vòng 2 ngày. Công ty đã xác thực được bỏ qua kiểm duyệt tin tuyển dụng.",
+    keywords: ["xác thực công ty", "verify công ty", "xác thực doanh nghiệp", "trust badge"],
+    roles: ["Employer"],
+    category: "employer",
+  },
+  {
+    id: "vi-emp-4",
+    question: "Tôi có thể sửa hoặc xóa tin tuyển dụng không?",
+    answer:
+      "Có. Vào Dashboard → Tin của tôi, nhấn menu ba chấm trên thẻ tin và chọn Sửa hoặc Xóa. Sửa tin đang hoạt động sẽ đưa tin vào hàng chờ duyệt lại.",
+    keywords: ["sửa tin tuyển dụng", "xóa tin", "cập nhật tin", "gỡ tin tuyển dụng", "chỉnh sửa job"],
+    roles: ["Employer"],
+    category: "employer",
+  },
+  {
+    id: "vi-emp-5",
+    question: "Làm thế nào để thiết lập hồ sơ công ty?",
+    answer:
+      "Sau khi đăng ký Nhà tuyển dụng, vào Dashboard → Hồ sơ công ty. Thêm tên công ty, logo, mô tả, ngành nghề, quy mô và các liên kết mạng xã hội. Hồ sơ đầy đủ giúp tăng độ tin cậy.",
+    keywords: ["hồ sơ công ty", "trang công ty", "company profile", "thông tin công ty"],
+    roles: ["Employer"],
+    category: "employer",
+  },
 ];
 
 /** Categories with display labels for the frontend */

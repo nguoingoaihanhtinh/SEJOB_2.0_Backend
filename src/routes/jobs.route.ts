@@ -1,5 +1,16 @@
 import { Router } from "express";
-import { listJobs, getJob, createJob, syncES, similarJobRecommendation, updateJob, deleteJob, listJobsByCompany, listMergedJobs, userRecommendationJobs } from "@/handlers/jobs.handler";
+import {
+  listJobs,
+  getJob,
+  createJob,
+  syncES,
+  similarJobRecommendation,
+  updateJob,
+  deleteJob,
+  listJobsByCompany,
+  listMergedJobs,
+  userRecommendationJobs,
+} from "@/handlers/jobs.handler";
 import { authenticate } from "@/middlewares/auth.middleware";
 import { authorizeRoles } from "@/middlewares/authorizeRoles";
 
@@ -14,13 +25,11 @@ router.get("/company/:id", listJobsByCompany);
 router.get("/recommendation/me", authenticate, authorizeRoles("Student"), userRecommendationJobs);
 router.get("/recommendation/:id/similar", similarJobRecommendation);
 
-
 // Protected CRUD
 router.post("/", authenticate, authorizeRoles("Admin", "Manager", "Employer"), createJob);
 // router.post("/", createJob);
 router.put("/:id", authenticate, authorizeRoles("Admin", "Manager", "Employer"), updateJob);
 router.delete("/:id", authenticate, authorizeRoles("Admin", "Manager", "Employer"), deleteJob);
-router.post("/sync-es", authenticate, authorizeRoles("Admin"), syncES);
-
+router.post("/sync-es", syncES);
 
 export default router;

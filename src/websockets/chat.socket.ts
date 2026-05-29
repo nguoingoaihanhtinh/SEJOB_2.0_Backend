@@ -75,21 +75,50 @@ export function initSocketServer(httpServer: HttpServer) {
   });
 
   const onlineUsers = new Map<number, Set<string>>();
+  const messageRateMap = new Map<number, number[]>();
+  const RATE_WINDOW_MS = 60_000;
+  const RATE_MAX = 30;
+
+  // Periodically clean stale socket references from onlineUsers
+  setInterval(() => {
+    for (const [uid, sockets] of onlineUsers) {
+      for (const sid of sockets) {
+        if (!io.sockets.sockets.has(sid)) {
+          sockets.delete(sid);
+        }
+      }
+      if (sockets.size === 0) {
+        onlineUsers.delete(uid);
+        messageRateMap.delete(uid);
+      }
+    }
+  }, 60_000).unref();
 
   io.on("connection", (socket: Socket) => {
     const userId = socket.data.user.userId;
-    logger.info(`🔌 User connected to chat socket: ${userId}`);
+    logger.info(`User connected to chat socket: ${userId}`);
 
     if (!onlineUsers.has(userId)) {
       onlineUsers.set(userId, new Set());
     }
-    onlineUsers.get(userId)?.add(socket.id);
+    onlineUsers.get(userId)!.add(socket.id);
     io.emit("online_users", Array.from(onlineUsers.keys()));
 
     const roomName = `user_${userId}`;
     socket.join(roomName);
 
     socket.on("send_message", async (payload: ChatMessagePayload) => {
+      // Rate limiting per user
+      const now = Date.now();
+      const timestamps = messageRateMap.get(userId) ?? [];
+      const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
+      if (recent.length >= RATE_MAX) {
+        socket.emit("error", { message: "Bạn đang gửi tin nhắn quá nhanh. Vui lòng chờ một lát." });
+        return;
+      }
+      recent.push(now);
+      messageRateMap.set(userId, recent);
+
       try {
         const { data: msg, error } = await supabase
           .from("chat_messages")
@@ -103,12 +132,10 @@ export function initSocketServer(httpServer: HttpServer) {
 
         if (error) throw error;
 
-        // Broadcast to receiver
         const room = `user_${payload.receiverId}`;
         io.to(room).emit("receive_message", msg);
         socket.emit("receive_message", msg);
 
-        // Trigger Notification
         const { default: notificationService } = await import("../services/notifications.service");
         const { NotificationType } = await import("../types/common");
 
@@ -138,6 +165,7 @@ export function initSocketServer(httpServer: HttpServer) {
         userSockets.delete(socket.id);
         if (userSockets.size === 0) {
           onlineUsers.delete(userId);
+          messageRateMap.delete(userId);
         }
       }
       io.emit("online_users", Array.from(onlineUsers.keys()));

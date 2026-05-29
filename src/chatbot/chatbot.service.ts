@@ -5,29 +5,51 @@ import { FAQ_DB } from "./chatbot.faq";
 import { FAQ, ChatRequest, ChatResponse, SuggestedQuestion, SuggestionsRequest, UserRole } from "./chatbot.types";
 import logger from "@/utils/logger";
 
-// ─── NLP setup ────────────────────────────────────────────────────────────────
 const tokenizer = new natural.WordTokenizer();
 const stemmer = natural.PorterStemmer;
 const TfIdf = natural.TfIdf;
 
-/** Minimum TF-IDF score to accept an FAQ match (tune as needed) */
 const MATCH_THRESHOLD = 0.18;
-/** Max quick-option chips returned */
+const NEAR_MISS_THRESHOLD = 0.10;
 const MAX_SUGGESTIONS = 5;
+const MAX_MESSAGE_LENGTH = 1000;
+const CACHE_MAX_SIZE = 100;
 
+const VI_PATTERNS: [RegExp, string][] = [
+  [/[àáạảãâầấậẩẫăằắặẳẵ]/g, "a"],
+  [/[èéẹẻẽêềếệểễ]/g, "e"],
+  [/[ìíịỉĩ]/g, "i"],
+  [/[òóọỏõôồốộổỗơờớợởỡ]/g, "o"],
+  [/[ùúụủũưừứựửữ]/g, "u"],
+  [/[ỳýỵỷỹ]/g, "y"],
+  [/đ/g, "d"],
+];
 
+function hasVietnamese(text: string): boolean {
+  return /[\u00C0-\u1EF9]/.test(text);
+}
 
-// ─── NLP helpers ─────────────────────────────────────────────────────────────
+function removeDiacritics(text: string): string {
+  let result = text.toLowerCase();
+  for (const [re, ch] of VI_PATTERNS) {
+    result = result.replace(re, ch);
+  }
+  return result;
+}
 
 function normalise(text: string): string {
-  return text
-    .toLowerCase()
+  return removeDiacritics(text)
     .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 function stemTokens(text: string): string[] {
-  return tokenizer.tokenize(normalise(text)).map((t) => stemmer.stem(t));
+  const isVietnamese = hasVietnamese(text);
+  const tokens = tokenizer.tokenize(normalise(text));
+  if (!tokens) return [];
+  if (isVietnamese) return tokens;
+  return tokens.map((t) => stemmer.stem(t));
 }
 
 function scoreFAQ(faq: FAQ, query: string): number {
@@ -37,13 +59,15 @@ function scoreFAQ(faq: FAQ, query: string): number {
 
   let score = 0;
   const queryTokens = stemTokens(query);
+  if (queryTokens.length === 0) return 0;
+
   queryTokens.forEach((token) => {
     tfidf.tfidfs(token, (_i: number, measure: number) => {
       score += measure;
     });
   });
 
-  return queryTokens.length > 0 ? score / queryTokens.length : 0;
+  return score / queryTokens.length;
 }
 
 function filterByRole(role?: UserRole): FAQ[] {
@@ -67,6 +91,20 @@ function findBestMatch(query: string, role?: UserRole): { faq: FAQ; score: numbe
   return best && best.score >= MATCH_THRESHOLD ? best : null;
 }
 
+function findNearMatch(query: string, role?: UserRole): { faq: FAQ; score: number } | null {
+  const pool = filterByRole(role);
+  let best: { faq: FAQ; score: number } | null = null;
+
+  for (const faq of pool) {
+    const score = scoreFAQ(faq, query);
+    if (!best || score > best.score) {
+      best = { faq, score };
+    }
+  }
+
+  return best && best.score >= NEAR_MISS_THRESHOLD && best.score < MATCH_THRESHOLD ? best : null;
+}
+
 function buildSuggestions(input: string, role?: UserRole): SuggestedQuestion[] {
   const pool = filterByRole(role);
 
@@ -85,26 +123,44 @@ function buildSuggestions(input: string, role?: UserRole): SuggestedQuestion[] {
     .map((s) => ({ id: s.faq.id, question: s.faq.question, category: s.faq.category }));
 }
 
+// ─── Exact-match cache for FAQ hits (cost-free repeat answers) ─────────────
+
+const faqCache = new Map<string, ChatResponse>();
+
+function getCachedFAQ(input: string, role?: UserRole): ChatResponse | undefined {
+  const key = `${role || "Guest"}::${input.toLowerCase().trim()}`;
+  return faqCache.get(key);
+}
+
+function setCachedFAQ(input: string, role: UserRole | undefined, response: ChatResponse): void {
+  const key = `${role || "Guest"}::${input.toLowerCase().trim()}`;
+  faqCache.set(key, response);
+  if (faqCache.size > CACHE_MAX_SIZE) faqCache.clear();
+}
+
 // ─── AI system prompt ─────────────────────────────────────────────────────────
 
 function buildSystemPrompt(role?: UserRole): string {
+  const roleLine =
+    role && role !== "Guest"
+      ? `The user is logged in as a ${role}.`
+      : "The user is a guest (not logged in).";
   return `You are SEBot, a helpful assistant for SEJobs – a job platform connecting students with employers.
-${role && role !== "Guest" ? `The user is logged in as a ${role}.` : "The user is a guest (not logged in)."}
+${roleLine}
 
 Platform facts:
 - Students: Search jobs, apply, upload PDF CVs, get AI job recommendations based on skills and profile.
 - Employers: Post jobs, manage applications, set up company profiles, and chat with applicants.
 - AI CV Scoring: The platform automatically scores CVs against job requirements, considering skills, education (IT vs. non-IT), projects, and work experience.
-- Real-time Chat: Students and employers can message each other directly to discuss job opportunities or schedule interviews.
-- Notifications: Users receive real-time and email alerts for new chat messages, application updates, and relevant job postings.
+- Real-time Chat: Students and employers can message each other directly.
+- Notifications: Real-time and email alerts for new messages, application updates, and relevant jobs.
 - Job posts: Require admin approval before going live (verified companies bypass this).
 - The platform is completely free for students.
 
 Rules:
-- Only answer questions related to SEJobs features, job searching, applying, career advice, or the specific features mentioned above.
-- If a user asks about their "CV Score", explain that it's calculated based on how well their skills, education, and projects match the job description.
-- Politely decline and redirect if the question is completely off-topic.
+- Only answer questions related to SEJobs features, job searching, applying, career advice, or the specific features above.
 - Be concise (3-4 sentences max; use bullet points for lists).
+- Politely decline off-topic questions.
 - Never reveal database schemas, internal architecture, or confidential data.`;
 }
 
@@ -113,19 +169,51 @@ Rules:
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
   const { message, history = [], userRole } = req;
 
+  // 0. Input sanitisation
+  if (!message || message.length > MAX_MESSAGE_LENGTH) {
+    return {
+      answer:
+        "Please keep your message under 1000 characters. / Vui lòng giới hạn tin nhắn dưới 1000 ký tự.",
+      source: "fallback",
+      suggestions: buildSuggestions("", userRole),
+    };
+  }
+
+  // 0b. Check exact-match cache (FAQ hits only — AI responses are not cached)
+  const cached = getCachedFAQ(message, userRole);
+  if (cached) {
+    logger.info(`[Chatbot] Cache hit for exact match`);
+    return cached;
+  }
+
   // 1. Fast FAQ match – no API cost
   const match = findBestMatch(message, userRole);
   if (match) {
     logger.info(`[Chatbot] FAQ hit: ${match.faq.id} (score=${match.score.toFixed(3)})`);
-    return {
+    const response: ChatResponse = {
       answer: match.faq.answer,
       source: "faq",
       matchedFaqId: match.faq.id,
       suggestions: buildSuggestions(message, userRole),
     };
+    setCachedFAQ(message, userRole, response);
+    return response;
   }
 
-  // 2. AI fallback
+  // 2. Near-miss FAQ — score between NEAR_MISS and MATCH_THRESHOLD
+  //    Returns "Did you mean?" without any AI cost.
+  const nearMatch = findNearMatch(message, userRole);
+  if (nearMatch) {
+    logger.info(`[Chatbot] Near-miss: ${nearMatch.faq.id} (score=${nearMatch.score.toFixed(3)})`);
+    return {
+      answer: `Did you mean: "${nearMatch.faq.question}"?\n\n${nearMatch.faq.answer}`,
+      source: "faq",
+      matchedFaqId: nearMatch.faq.id,
+      suggestions: buildSuggestions(message, userRole),
+    };
+  }
+
+  // 3. AI fallback
   const openai = getOpenAI();
   if (openai) {
     try {
@@ -159,10 +247,10 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
     }
   }
 
-  // 3. Generic fallback
+  // 4. Generic fallback (bilingual)
   return {
     answer:
-      "I'm not sure how to answer that. Try rephrasing, or pick a suggested topic below. You can also reach us at support@sejobs.com.",
+      "I'm not sure how to answer that. Try rephrasing, or pick a suggested topic below. You can also reach us at support@sejobs.com.\n\nXin hãy thử diễn đạt lại câu hỏi hoặc chọn một chủ đề gợi ý bên dưới. Liên hệ support@sejobs.com để được trợ giúp.",
     source: "fallback",
     suggestions: buildSuggestions("", userRole),
   };
