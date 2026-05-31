@@ -9,7 +9,7 @@ const companyProfileSchema = z.object({
   description: z.string().optional(),
   phone: z.string(),
   email: z.email().optional(),
-  website_url: z.url().optional(),
+  website_url: z.url().optional().nullable(),
   images: z.array(z.url()).optional(),
   tech_stack: z.array(z.string()).optional(),
   employee_count: z.number().int().nonnegative().optional(),
