@@ -211,5 +211,7 @@ export async function scoreApplication(req: Request, res: Response) {
 
   const forceRefresh = req.query.forceRefresh === 'true';
   const scoreResult = await cvScoringService.scoreApplication(id, forceRefresh);
+
+  res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
   res.status(200).json({ success: true, data: scoreResult });
 }

@@ -121,7 +121,7 @@ async function callLLM(system: string, user: string): Promise<CareerAdvice | nul
   const openai = getOpenAI();
   if (!openai) return null;
 
-  const primaryModel = process.env.CAREER_ADVICE_MODEL || getModel();
+  const primaryModel = process.env.CV_EXTRACTION_MODEL || getModel();
   const fallbackModel = getModel();
   const attempts: Array<{ model: string; delay: number }> = [
     { model: primaryModel, delay: 0 },
@@ -179,10 +179,10 @@ export class CareerAdviceService {
 
     const key = cacheKey(userId, student, experiences, educations);
     const cached = simpleCache.get<CareerAdvice>(key);
-    if (cached) {
-      logger.info(`[CareerAdvice] Cache hit for user ${userId}`);
-      return cached;
-    }
+    // if (cached) {
+    //   logger.info(`[CareerAdvice] Cache hit for user ${userId}`);
+    //   return cached;
+    // }
 
     let recommendedJobs: any[] = [];
     try {
