@@ -139,6 +139,17 @@ export function initSocketServer(httpServer: HttpServer) {
         const { default: notificationService } = await import("../services/notifications.service");
         const { NotificationType } = await import("../types/common");
 
+        // Chỉ gửi email notification nếu là tin nhắn đầu tiên trong 24h
+        const { count: recentNotifCount } = await supabase
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("type", NotificationType.NewChatMessage)
+          .eq("receiver_id", payload.receiverId)
+          .filter("data->>conversation_id", "eq", String(payload.conversationId))
+          .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+        const skipEmail = (recentNotifCount ?? 0) > 0;
+
         await notificationService.create({
           data: {
             type: NotificationType.NewChatMessage,
@@ -151,7 +162,8 @@ export function initSocketServer(httpServer: HttpServer) {
               conversation_id: payload.conversationId,
               message_id: msg.id
             }
-          }
+          },
+          skipEmail,
         });
 
       } catch (err: any) {

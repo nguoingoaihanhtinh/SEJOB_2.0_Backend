@@ -733,9 +733,9 @@ export class CvScoringService {
 
   /**
    * B2. Course/Skills Mapping — 15đ
-   * Cross-references the student's education fields with job requirements
-   * via the skill-mapping table. GPA parsed from description boosts the score.
-   */
+    * Cross-references the student's education fields with job requirements
+    * via the skill-mapping table.
+    */
   private async scoreCourses(
     educations: any[],
     jobRequirements: string[],
@@ -753,23 +753,9 @@ export class CvScoringService {
       expanded.some((exp) => exp.includes(req.toLowerCase()) || req.toLowerCase().includes(exp)),
     );
 
-    const baseRatio = jobRequirements.length > 0 ? matched.length / jobRequirements.length : 1;
+    const ratio = jobRequirements.length > 0 ? matched.length / jobRequirements.length : 1;
 
-    // GPA boost: parse GPA from education description (e.g. "GPA: 3.5/4.0", "3.2/4", "gpa 3.8")
-    let gpaMultiplier = 1;
-    for (const edu of educations) {
-      const desc = (edu.description || "").toLowerCase();
-      const gpaMatch = desc.match(/(\d+\.?\d*)\s*\/\s*4\.?0?/) || desc.match(/gpa[:\s]*(\d+\.?\d*)/);
-      if (gpaMatch) {
-        const gpa = parseFloat(gpaMatch[1]!);
-        if (gpa >= 2.0 && gpa <= 4.0) {
-          gpaMultiplier = Math.max(gpaMultiplier, 0.5 + (gpa / 4.0) * 0.5);
-        }
-      }
-    }
-
-    const score = Math.round(Math.min(baseRatio, 1) * maxScore * gpaMultiplier);
-    return Math.min(score, maxScore);
+    return Math.round(Math.min(ratio, 1) * maxScore);
   }
 
   // ==========================================================================
@@ -870,7 +856,7 @@ export class CvScoringService {
       }
     }
 
-    // --- 5. AI Scan for Candidate's Common Skills & Categories ---
+    // --- 6. AI Scan for Candidate's Common Skills & Categories ---
     let aiExtractedSkillIds: number[] = [];
 
     const hasUsefulEducation = educations.some(

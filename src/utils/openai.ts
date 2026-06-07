@@ -15,6 +15,7 @@ export const OPENAI_MODEL = "gpt-4o-mini";
 
 /** Returns the active model name based on which key is configured. */
 export function getModel(): string {
+  if (process.env.CV_EXTRACTION_MODEL) return process.env.CV_EXTRACTION_MODEL;
   if (process.env.LLM_MODEL) return process.env.LLM_MODEL;
 
   return (process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY)

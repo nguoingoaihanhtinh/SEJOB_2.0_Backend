@@ -21,8 +21,8 @@ export class NotificationService {
     return await notificationRepository.update(input.query, input.data);
   }
 
-  async create(input: { data: NotificationInsert }) {
-    const { data } = input;
+  async create(input: { data: NotificationInsert; skipEmail?: boolean }) {
+    const { data, skipEmail } = input;
 
     const notification_type = _.get(data, 'type');
 
@@ -41,8 +41,8 @@ export class NotificationService {
       io.to(room).emit("new_notification", notification);
     }
 
-    // Send Email notification
-    if (notification.receiver_id) {
+    // Send Email notification (skip nếu là tin nhắn chat lặp trong 24h)
+    if (notification.receiver_id && !skipEmail) {
       try {
         const user = await userRepository.findOne({ 
           user_id: notification.receiver_id, 
