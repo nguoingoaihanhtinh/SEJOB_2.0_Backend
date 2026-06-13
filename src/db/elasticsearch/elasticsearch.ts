@@ -1,10 +1,36 @@
 import { Client } from "@elastic/elasticsearch"
+import { env } from "../../config/env"
 
 export const es = new Client({
-  node: "http://localhost:19200",
+  node: env.ES_HOST || "http://localhost:19200",
 })
 
 export const JOBS_INDEX = "jobs";
+
+export async function ensureJobsIndex() {
+  const exists = await es.indices.exists({ index: JOBS_INDEX });
+  if (exists) {
+    await es.indices.delete({ index: JOBS_INDEX });
+  }
+
+  await es.indices.create({
+    index: JOBS_INDEX,
+    settings: {
+      number_of_shards: 1,
+      number_of_replicas: 0,
+    },
+    mappings: {
+      properties: {
+        skills: { type: "nested" },
+        categories: { type: "nested" },
+        levels: { type: "nested" },
+        company_branches: { type: "nested" },
+        company: { type: "object" },
+        search_text: { type: "text" },
+      },
+    },
+  });
+}
 
 export const ESJob = {
   bulkIndex: async (jobs: any[]) => {

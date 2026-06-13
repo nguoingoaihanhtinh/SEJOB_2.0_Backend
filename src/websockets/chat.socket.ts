@@ -20,13 +20,7 @@ export function getIO() {
 export function initSocketServer(httpServer: HttpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "https://sejobs.vercel.app"
-      ],
+      origin: true,
       credentials: true,
     },
   });
@@ -156,16 +150,16 @@ export function initSocketServer(httpServer: HttpServer) {
             receiver_id: payload.receiverId,
             sender_id: userId,
             title: "Tin nhắn mới",
-            content: `${msg.sender?.first_name || ''} ${msg.sender?.last_name || 'Ai đó'} đã gửi cho bạn một tin nhắn`.trim(),
+            content:
+              `${msg.sender?.first_name || ""} ${msg.sender?.last_name || "Ai đó"} đã gửi cho bạn một tin nhắn`.trim(),
             status: "sent",
             data: {
               conversation_id: payload.conversationId,
-              message_id: msg.id
-            }
+              message_id: msg.id,
+            },
           },
           skipEmail,
         });
-
       } catch (err: any) {
         logger.error(`Error saving message: ${err.message || JSON.stringify(err)}`);
       }
@@ -186,4 +180,3 @@ export function initSocketServer(httpServer: HttpServer) {
 
   return io;
 }
-

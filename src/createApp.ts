@@ -45,18 +45,21 @@ import logger from "./utils/logger";
 export const createApp = () => {
   const app = express();
 
-  const allowedOrigins = ["http://localhost:5173", "https://sejobs.vercel.app", /https:\/\/.*\.ngrok-free\.app$/];
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "https://sejobs.vercel.app",
+    "https://sejobs.uit.vn",
+    "https://sejob-2-0-frontend.vercel.app",
+    // /^https:\/\/.*\.ngrok-free\.(app|dev)$/,
+  ];
 
   // Middlewares
   app.use(
     cors({
       origin: function (origin, callback) {
         if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        } else {
-          return callback(null, false);
-        }
+        const allowed = allowedOrigins.some((o) => (typeof o === "string" ? o === origin : o.test(origin)));
+        callback(null, allowed);
       },
       credentials: true,
       exposedHeaders: ["Authorization"],

@@ -1,20 +1,17 @@
 # Use Node.js LTS version as the base image
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
 # Install dependencies for development and testing
 COPY package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts && npm rebuild
 
 # Copy TypeScript configuration and source code
 COPY tsconfig.json ./
 COPY src/ ./src/
 
-# Copy test files
-COPY jest.config.js ./
-COPY src/__tests__/ ./src/__tests__/
 
 # Build TypeScript code
 RUN npm run build
@@ -29,5 +26,5 @@ ENV NODE_ENV=production
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application (ts-node để resolve @/ path aliases)
+CMD ["node", "-r", "ts-node/register", "-r", "tsconfig-paths/register", "./src/index.ts"]

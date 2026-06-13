@@ -595,7 +595,15 @@ export class CvScoringService {
         break;
       }
 
-      // Priority 2: Famous IT Cert Organizations match
+      // Priority 2: Language proficiency certs (IELTS, TOEIC, TOEFL, etc.)
+      const langKeywords = ["ielts", "toeic", "toefl", "tiếng anh", "tieng anh", "ngoại ngữ", "foreign language", "language", "japanese", "tiếng nhật", "chinese", "tiếng trung", "korean", "tiếng hàn"];
+      const isLangCert = langKeywords.some((kw) => certName.includes(kw) || certText.includes(kw));
+
+      if (isLangCert) {
+        certScore = Math.max(certScore, Math.round(maxScore * 0.6));
+      }
+
+      // Priority 3: Famous IT Cert Organizations match
       const famousOrgs = ["aws", "microsoft", "google", "oracle", "cisco", "red hat", "comptia", "isc2"];
       const isFamousOrg = famousOrgs.some((org) => certOrg.includes(org) || certName.includes(org));
 
@@ -603,7 +611,7 @@ export class CvScoringService {
         certScore = Math.max(certScore, Math.round(maxScore * 0.8));
       }
 
-      // Priority 3: Indirect match in description
+      // Priority 4: Indirect match in description
       const indirectMatch = combinedRequirements.some((req) => {
         if (req.length <= 4) return false;
         return certText.includes(req);
@@ -736,28 +744,6 @@ export class CvScoringService {
     * Cross-references the student's education fields with job requirements
     * via the skill-mapping table.
     */
-  private async scoreCourses(
-    educations: any[],
-    jobRequirements: string[],
-    maxScore: number,
-  ): Promise<number> {
-    if (!educations || educations.length === 0) return 0;
-    if (!jobRequirements || jobRequirements.length === 0) return maxScore;
-
-    const fields = educations.map((e) => [e.major, e.degree].filter(Boolean)).flat() as string[];
-    if (fields.length === 0) return 0;
-
-    const expanded = await skillMappingService.expandSkills(fields);
-
-    const matched = jobRequirements.filter((req) =>
-      expanded.some((exp) => exp.includes(req.toLowerCase()) || req.toLowerCase().includes(exp)),
-    );
-
-    const ratio = jobRequirements.length > 0 ? matched.length / jobRequirements.length : 1;
-
-    return Math.round(Math.min(ratio, 1) * maxScore);
-  }
-
   // ==========================================================================
   // MAIN SCORING METHOD
   // ==========================================================================
@@ -956,6 +942,10 @@ export class CvScoringService {
 
           if (certifications.length === 0 && parsed.has_it_cert) {
             certifications.push({ name: "AI Extracted IT Certification" });
+            const langKeywords = ["ielts", "toeic", "toefl", "tiếng anh", "tieng anh", "ngoại ngữ"];
+            if (langKeywords.some(kw => cvText.toLowerCase().includes(kw))) {
+              certifications.push({ name: "Language Certification (from CV)" });
+            }
           }
 
           aiExtractedSkillIds = extractedNames
@@ -970,6 +960,17 @@ export class CvScoringService {
           }
         }
       }
+    }
+
+    // Fallback: scan PDF for language certs if none found in DB or AI extraction
+    if (certifications.length === 0 && pdfText.length > 20) {
+      const lower = pdfText.toLowerCase();
+      let langCertName = "";
+      if (lower.includes("toeic")) langCertName = "TOEIC";
+      else if (lower.includes("ielts")) langCertName = "IELTS";
+      else if (lower.includes("toefl")) langCertName = "TOEFL";
+      else if (lower.includes("tiếng anh") || lower.includes("tieng anh") || lower.includes("ngoại ngữ") || lower.includes("foreign language")) langCertName = "Language Certification";
+      if (langCertName) certifications.push({ name: langCertName });
     }
 
     const explicitSkillIds = commonSkills
@@ -1019,8 +1020,7 @@ export class CvScoringService {
     const b1Result = this.scoreMajor(educations, weights.B1_MAJOR);
     const b1Score = clamp(b1Result.score, weights.B1_MAJOR);
 
-    // B2. Course/Skills Mapping — real cross-reference via skill_mapping table
-    const b2Score = await this.scoreCourses(educations, jobRequirements, weights.B2_COURSES);
+    const b2Score = 0;
 
     // C1. Project Count
     const c1Score = hasProjects
@@ -1197,14 +1197,9 @@ export class CvScoringService {
           reason: b1Result.reason,
           note,
         },
-        courses: {
-          score: scores.b2,
-          max: weights.B2_COURSES,
-          note: "Skill-mapping based: education fields × job requirement overlap",
-        },
         total: {
-          score: scores.b1 + scores.b2,
-          max: weights.B1_MAJOR + weights.B2_COURSES,
+          score: scores.b1,
+          max: weights.B1_MAJOR,
         },
       },
       projects: {
@@ -1243,7 +1238,6 @@ export class CvScoringService {
           scores.a2 +
           scores.a3 +
           scores.b1 +
-          scores.b2 +
           scores.c1 +
           scores.c2 +
           scores.c3 +

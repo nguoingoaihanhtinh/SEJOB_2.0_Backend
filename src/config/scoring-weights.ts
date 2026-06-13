@@ -15,22 +15,22 @@ export interface ScoringWeights {
 }
 
 export const DEFAULT_WEIGHTS: ScoringWeights = {
-  A1_REQUIRED: 30,
+  A1_REQUIRED: 35,
   A2_NICE: 10,
   A3_SKILL_DEPTH: 5,
   B1_MAJOR: 10,
-  B2_COURSES: 15,
+  B2_COURSES: 0,
   C1_PROJECT_COUNT: 5,
   C2_PROJECT_RELEVANCE: 10,
   C3_PROJECT_COMPLEXITY: 5,
-  D_CERTIFICATIONS: 5,
-  E_EXPERIENCE: 5,
+  D_CERTIFICATIONS: 10,
+  E_EXPERIENCE: 10,
 };
 
 /**
  * When a student has 0 projects, the entire C category (20 points: C1=5, C2=10, C3=5) is
- * redistributed to A1 (+10), B1 (+5), and E (+5). This ensures the total always equals 100 
- * without awarding "free" points.
+ * redistributed to A1 (+10), B1 (+5), and E (+5). B2_COURSES is disabled (0 pts).
+ * This ensures the total always equals 100 without awarding "free" points.
  */
 export function getDynamicWeights(hasProjects: boolean): ScoringWeights {
   if (hasProjects) {

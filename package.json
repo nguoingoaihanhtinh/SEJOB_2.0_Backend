@@ -14,7 +14,8 @@
     "docker:compose:down": "docker-compose down",
     "gen-db": "npx supabase gen types typescript --project-id ldypjxamjlquzbcdhuvk > src/types/database.ts",
     "migrate": "psql \"$DATABASE_URL\" -f ./db/migrations/001_create_jobs.sql",
-    "migrate:seed": "psql \"$DATABASE_URL\" -f ./db/migrations/001_seed_jobs.sql"
+    "migrate:seed": "psql \"$DATABASE_URL\" -f ./db/migrations/001_seed_jobs.sql",
+    "seed": "psql \"$DATABASE_URL\" -f ./src/db/seed.sql"
   },
   "keywords": [],
   "author": "",
@@ -63,6 +64,8 @@
     "nodemailer": "^7.0.12",
     "openai": "^6.25.0",
     "pdf-parse": "^1.1.4",
+    "pdf2json": "^4.0.3",
+    "pdfjs-dist": "^6.0.227",
     "socket.io": "^4.8.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
