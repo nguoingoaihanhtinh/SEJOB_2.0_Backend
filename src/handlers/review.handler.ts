@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { ReviewService } from "@/services/review.service";
-import { createReviewSchema, updateReviewStatusSchema } from "@/dtos/user/Review.dto";
+import { createReviewSchema, updateReviewStatusSchema, updateReviewSchema } from "@/dtos/user/Review.dto";
 import { ReviewType } from "@/types/common";
 
 export const ReviewHandler = {
@@ -26,6 +26,13 @@ export const ReviewHandler = {
     });
 
     return res.status(201).json(review);
+  },
+
+  async update(req: Request, res: Response) {
+    const id = parseInt(req.params.id as string);
+    const validated = updateReviewSchema.parse(req.body);
+    const review = await ReviewService.update(id, validated);
+    return res.json(review);
   },
 
   async updatePublicStatus(req: Request, res: Response) {

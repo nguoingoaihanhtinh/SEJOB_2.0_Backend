@@ -443,10 +443,10 @@ export interface ReviewInsert {
 }
 
 export interface ReviewUpdate {
-  rating?: number;
-  comment?: string | null;
-  is_approved?: boolean;
-  updated_at?: Date | string;
+  rating?: number | undefined;
+  comment?: string | null | undefined;
+  is_approved?: boolean | undefined;
+  updated_at?: Date | string | undefined;
 }
 
 export interface ReviewQueryParams extends QueryParams {

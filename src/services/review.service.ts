@@ -1,6 +1,6 @@
 import ReviewRepository from "@/repositories/review.repository";
 import ApplicationRepository from "@/repositories/application.repository";
-import { CreateReviewDTO, UpdateReviewStatusDTO } from "@/dtos/user/Review.dto";
+import { CreateReviewDTO, UpdateReviewStatusDTO, UpdateReviewDTO } from "@/dtos/user/Review.dto";
 import { NotFoundError, ForbiddenError, BadRequestError } from "@/utils/errors";
 import { ReviewQueryParams, ReviewType, ReviewInsert, QueryParams } from "@/types/common";
 import { MessageUtil } from "@/utils/MessageUtil";
@@ -70,6 +70,15 @@ export const ReviewService = {
 
     return await ReviewRepository.update(id, {
       is_approved: payload.is_approved,
+      updated_at: new Date(),
+    });
+  },
+
+  async update(id: number, payload: UpdateReviewDTO) {
+    const review = await ReviewRepository.findOne(id);
+    if (!review) throw new NotFoundError({ message: "Review not found" });
+    return await ReviewRepository.update(id, {
+      ...payload,
       updated_at: new Date(),
     });
   },

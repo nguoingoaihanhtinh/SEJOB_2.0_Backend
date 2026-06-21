@@ -58,7 +58,7 @@ export const createApp = () => {
     cors({
       origin: function (origin, callback) {
         if (!origin) return callback(null, true);
-        const allowed = allowedOrigins.some((o) => (typeof o === "string" ? o === origin : o.test(origin)));
+        const allowed = allowedOrigins.some((o) => o === origin);
         callback(null, allowed);
       },
       credentials: true,

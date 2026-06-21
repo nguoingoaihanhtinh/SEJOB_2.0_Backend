@@ -291,7 +291,7 @@ export class AdminService {
       });
 
       const jobsByCompany = _.groupBy(jobs, "company_id");
-      const applicationsByCompany = _.groupBy(applications, (app: any) => Number(app.company?.id));
+      const applicationsByCompany = _.groupBy(applications, (app: any) => app.company_id);
 
       const companyStats = (companies as CompanyInfo[]).map((company) => {
         const companyJobs = jobsByCompany[company.id] || [];

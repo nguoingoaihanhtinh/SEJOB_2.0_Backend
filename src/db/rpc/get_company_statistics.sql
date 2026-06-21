@@ -65,6 +65,19 @@ BEGIN
     WHERE j.company_id = company_id_param
       AND EXTRACT(YEAR FROM j.created_at) = target_year
     GROUP BY et.name
+  ),
+  top_skills AS (
+    SELECT
+      s.name AS skill_name,
+      COUNT(*) AS count
+    FROM jobs j
+    JOIN job_skills js ON j.id = js.job_id
+    JOIN skills s ON js.skill_id = s.id
+    WHERE j.company_id = company_id_param
+      AND EXTRACT(YEAR FROM j.created_at) = target_year
+    GROUP BY s.name
+    ORDER BY count DESC
+    LIMIT 10
   )
   SELECT json_build_object(
     'selected_year', target_year,
@@ -92,6 +105,10 @@ BEGIN
     'employment_types', (
       SELECT COALESCE(json_object_agg(employment_type, count), '{}')
       FROM job_categories
+    ),
+    'top_skills', (
+      SELECT COALESCE(json_object_agg(skill_name, count), '{}')
+      FROM top_skills
     )
   ) INTO result;
 

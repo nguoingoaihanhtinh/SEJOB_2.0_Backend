@@ -12,6 +12,9 @@ router.get("/company/:companyId", ReviewHandler.getPublicReviewsByCompany);
 router.post("/", authenticate, ReviewHandler.create);
 router.get("/application/:applicationId", authenticate, ReviewHandler.getReviewsByApplication);
 
+// Authenticated routes (update own review)
+router.patch("/:id", authenticate, ReviewHandler.update);
+
 // Admin routes
 router.get("/admin", authenticate, authorizeRoles("Admin"), ReviewHandler.getAll);
 router.get("/:id", authenticate, authorizeRoles("Admin"), ReviewHandler.getOne);

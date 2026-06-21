@@ -12,5 +12,11 @@ export const updateReviewStatusSchema = z.object({
   is_approved: z.boolean(),
 });
 
+export const updateReviewSchema = z.object({
+  rating: z.number().int().min(1).max(5).optional(),
+  comment: z.string().optional(),
+});
+
 export type CreateReviewDTO = z.infer<typeof createReviewSchema>;
 export type UpdateReviewStatusDTO = z.infer<typeof updateReviewStatusSchema>;
+export type UpdateReviewDTO = z.infer<typeof updateReviewSchema>;
