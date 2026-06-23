@@ -1,5 +1,6 @@
 import { Client } from "@elastic/elasticsearch"
 import { env } from "../../config/env"
+import jobMapping from "./job/job.mapping.json"
 
 export const es = new Client({
   node: env.ES_HOST || "http://localhost:19200",
@@ -8,47 +9,65 @@ export const es = new Client({
 export const JOBS_INDEX = "jobs";
 
 export async function ensureJobsIndex() {
+  // const exists = await es.indices.exists({ index: JOBS_INDEX });
+  // if (exists) {
+  //   // Index already exists — do NOT delete, data is preserved
+  //   console.log(`[ES] Index "${JOBS_INDEX}" already exists, skipping creation.`);
+  //   return;
+  // }
+
+  // await es.indices.create({
+  //   index: JOBS_INDEX,
+  //   settings: jobMapping.settings as any,
+  //   mappings: jobMapping.mappings as any,
+  // });
+
+  // console.log(`[ES] Index "${JOBS_INDEX}" created.`);
+}
+
+/** Xóa và tạo lại index từ đầu — CHỈ dùng khi cần reset hoàn toàn */
+export async function forceRecreateJobsIndex() {
   const exists = await es.indices.exists({ index: JOBS_INDEX });
   if (exists) {
     await es.indices.delete({ index: JOBS_INDEX });
+    console.log(`[ES] Index "${JOBS_INDEX}" deleted.`);
   }
 
   await es.indices.create({
     index: JOBS_INDEX,
-    settings: {
-      number_of_shards: 1,
-      number_of_replicas: 0,
-    },
-    mappings: {
-      properties: {
-        skills: { type: "nested" },
-        categories: { type: "nested" },
-        levels: { type: "nested" },
-        company_branches: { type: "nested" },
-        company: { type: "object" },
-        search_text: { type: "text" },
-      },
-    },
+    settings: jobMapping.settings as any,
+    mappings: jobMapping.mappings as any,
   });
+
+  console.log(`[ES] Index "${JOBS_INDEX}" recreated.`);
 }
 
 export const ESJob = {
   bulkIndex: async (jobs: any[]) => {
-    const body = jobs.flatMap((job) => [
+    const operations = jobs.flatMap((job) => [
       { index: { _index: JOBS_INDEX, _id: job.id } },
       job,
-    ])
+    ]);
 
-    const response = await es.bulk({ refresh: true, body })
+    const response = await es.bulk({ refresh: true, operations });
 
     if (response.errors) {
-      console.error("Bulk error:", response.items)
+      console.error("Bulk error:", response.items);
     }
-    return response
+    return response;
   },
   search: async (query: any) => {
-    const response = await es.search({ index: JOBS_INDEX, body: query })
-    return response
+    // @elastic/elasticsearch v9: `body` parameter removed — must spread fields directly
+    const { query: esQuery, from, size, ...rest } = query;
+    const response = await es.search({
+      index: JOBS_INDEX,
+      query: esQuery,
+      from,
+      size,
+      ...rest,
+    });
+    console.log("[ES.search] total hits:", (response as any).hits?.total);
+    return response;
   },
   index: async (job: any) => {
     const response = await es.index({ index: JOBS_INDEX, id: job.id, document: job })

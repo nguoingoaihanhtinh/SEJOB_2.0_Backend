@@ -553,6 +553,50 @@ export class JobService {
   async userRecommendationJobs({ userId, page = 1, limit = 10 }: { userId: number, page: number, limit: number }) {
     const student = await studentService.findOne({ user_id: userId });
 
+    // Build dynamic should clauses from student's recommendation_config
+    // If not configured, fall back to default scoring
+    const recommendationConfig: Array<{ key: string; query_key: string; score: number }> =
+      (student as any).recommendation_config || [
+        { key: "skills", query_key: "skills.name", score: 7 },
+        { key: "company_branches", query_key: "company_branches.province.id", score: 5 },
+      ];
+
+    // Fallback values from student profile (used when config has no explicit values)
+    const studentFieldDefaults: Record<string, any> = {
+      "skills.name": student.skills,
+      "company_branches.province.id": student.location_id,
+    };
+
+    const shouldClauses = recommendationConfig
+      .map((cfg: any) => {
+        // Use explicitly selected values if present, otherwise fall back to student profile field
+        const val = (cfg.values && cfg.values.length > 0)
+          ? cfg.values
+          : studentFieldDefaults[cfg.query_key];
+
+        return { cfg, val };
+      })
+      .filter(({ val }) => val !== undefined && val !== null && (Array.isArray(val) ? val.length > 0 : true))
+      .map(({ cfg, val }) => {
+        const nestedPath = cfg.key; // e.g. "skills", "company_branches", "categories", "levels"
+        const isArray = Array.isArray(val);
+        const queryType = isArray ? "terms" : "term";
+
+        return {
+          nested: {
+            path: nestedPath,
+            query: {
+              [queryType]: {
+                [cfg.query_key]: val,
+              },
+            },
+            score_mode: "sum",
+            boost: cfg.score,
+          },
+        };
+      });
+
+
     // Use ES to find recommended jobs
     const result = await ESJob.search({
       from: (page - 1) * limit,
@@ -574,32 +618,7 @@ export class JobService {
                 },
               ],
 
-              should: [
-                {
-                  nested: {
-                    path: "skills",
-                    query: {
-                      terms: {
-                        "skills.name": student.skills,
-                      },
-                    },
-                    score_mode: "sum",
-                    boost: 7,
-                  },
-                },
-
-                {
-                  nested: {
-                    path: "company_branches",
-                    query: {
-                      term: {
-                        "company_branches.province.id": student.location_id,
-                      },
-                    },
-                    boost: 5,
-                  },
-                },
-              ],
+              should: shouldClauses,
             },
           },
 
@@ -624,7 +643,7 @@ export class JobService {
 
     const jobIds = result.hits.hits.map((hit: any) => hit._source.id);
 
-    const result_jobs = await jobRepository.findAll({ job_ids: jobIds, page, limit });
+    const result_jobs = await jobRepository.findAll({ job_ids: jobIds, page, limit, is_company_active: [true, false] });
 
     const jobIndexMap = new Map<number, number>(jobIds.map((id: number, index: number) => [id, index]));
     const scoreMap = new Map<number, number>(result.hits.hits.map((hit: any) => [hit._source.id, hit._score]));

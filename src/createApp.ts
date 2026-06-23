@@ -45,12 +45,12 @@ import logger from "./utils/logger";
 export const createApp = () => {
   const app = express();
 
-  const allowedOrigins = [
+  const allowedOrigins: (string | RegExp)[] = [
     "http://localhost:5173",
     "https://sejobs.vercel.app",
     "https://sejobs.uit.vn",
     "https://sejob-2-0-frontend.vercel.app",
-    // /^https:\/\/.*\.ngrok-free\.(app|dev)$/,
+    /^https:\/\/.*\.ngrok-free\.(app|dev)$/,
   ];
 
   // Middlewares

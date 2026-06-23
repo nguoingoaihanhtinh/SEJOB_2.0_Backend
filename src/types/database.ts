@@ -1496,6 +1496,7 @@ export type Database = {
           location_id: number | null
           open_for_opportunities: boolean | null
           phone_number: string | null
+          recommendation_config: Json | null
           skills: string[] | null
           updated_at: string | null
           user_id: number | null
@@ -1511,6 +1512,7 @@ export type Database = {
           location_id?: number | null
           open_for_opportunities?: boolean | null
           phone_number?: string | null
+          recommendation_config?: Json | null
           skills?: string[] | null
           updated_at?: string | null
           user_id?: number | null
@@ -1526,6 +1528,7 @@ export type Database = {
           location_id?: number | null
           open_for_opportunities?: boolean | null
           phone_number?: string | null
+          recommendation_config?: Json | null
           skills?: string[] | null
           updated_at?: string | null
           user_id?: number | null
@@ -1739,6 +1742,7 @@ export type Database = {
           q_category_ids?: number[]
           q_company_id?: number
           q_employment_type_ids?: number[]
+          q_is_company_active?: boolean[]
           q_job_ids?: number[]
           q_keyword?: string
           q_level_ids?: number[]

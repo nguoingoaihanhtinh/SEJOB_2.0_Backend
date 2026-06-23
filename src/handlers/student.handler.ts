@@ -36,3 +36,22 @@ export async function getStudent(req: Request, res: Response) {
         data: student,
     });
 }
+
+export async function updateStudent(req: Request, res: Response) {
+    const { id } = req.params;
+    const { studentData } = req.body;
+
+    if (!id) {
+        throw new BadRequestError({ message: MessageUtil.get("MISSING_REQUIRED_PARAM_ID") });
+    }
+
+    const student = await studentService.update({
+        studentId: _.toNumber(id),
+        studentData: studentData,
+    });
+
+    res.status(200).json({
+        success: true,
+        data: student,
+    });
+}
