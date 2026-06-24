@@ -370,6 +370,8 @@ export type Database = {
           logo: string | null
           name: string
           phone: string | null
+          scoring_config: Json | null
+          scoring_prompt_template: string | null
           socials: Json | null
           tech_stack: string[] | null
           updated_at: string | null
@@ -390,6 +392,8 @@ export type Database = {
           logo?: string | null
           name: string
           phone?: string | null
+          scoring_config?: Json | null
+          scoring_prompt_template?: string | null
           socials?: Json | null
           tech_stack?: string[] | null
           updated_at?: string | null
@@ -410,6 +414,8 @@ export type Database = {
           logo?: string | null
           name?: string
           phone?: string | null
+          scoring_config?: Json | null
+          scoring_prompt_template?: string | null
           socials?: Json | null
           tech_stack?: string[] | null
           updated_at?: string | null
@@ -1009,6 +1015,7 @@ export type Database = {
           salary_from: number | null
           salary_text: string | null
           salary_to: number | null
+          scoring_weights: Json | null
           status: Database["public"]["Enums"]["jobstatus"] | null
           title: string
           updated_at: string | null
@@ -1037,6 +1044,7 @@ export type Database = {
           salary_from?: number | null
           salary_text?: string | null
           salary_to?: number | null
+          scoring_weights?: Json | null
           status?: Database["public"]["Enums"]["jobstatus"] | null
           title: string
           updated_at?: string | null
@@ -1065,6 +1073,7 @@ export type Database = {
           salary_from?: number | null
           salary_text?: string | null
           salary_to?: number | null
+          scoring_weights?: Json | null
           status?: Database["public"]["Enums"]["jobstatus"] | null
           title?: string
           updated_at?: string | null

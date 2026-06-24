@@ -14,6 +14,7 @@ export const updateCompanySchema = z.object({
   socials: z.record(z.string(), z.any()).nullable().optional(),
   images: z.array(z.url("Image must be a valid URL")).nullable().optional(),
   employee_count: z.number().int("Employee count must be an integer").nullable().optional(),
+  scoring_config: z.any().optional(),
   company_types: z.array(z.number()).optional(),
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),

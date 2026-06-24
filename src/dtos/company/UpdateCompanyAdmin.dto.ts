@@ -15,6 +15,7 @@ export const updateCompanyAdminSchema = z.object({
   images: z.array(z.url("Image must be a valid URL")).nullable().optional(),
   employee_count: z.number().int("Employee count must be an integer").nullable().optional(),
   company_types: z.array(z.number()).optional(),
+  scoring_config: z.any().optional(),
   is_verified: z.boolean().optional(),
   is_active: z.boolean().optional(),
   created_at: z.string().nullable().optional(),
