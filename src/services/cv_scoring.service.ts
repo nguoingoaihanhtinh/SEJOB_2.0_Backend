@@ -107,6 +107,11 @@ const aiScoringResultSchema = z.object({
   E_EXPERIENCE: z.number().min(0).default(0),
   E_EXPERIENCE_reason: z.string().default(""),
   reasoning: z.string().default(""),
+  strengths: z.array(z.string()).default([]),
+  weaknesses: z.array(z.string()).default([]),
+  matched_skills: z.array(z.string()).default([]),
+  missing_requirements: z.array(z.string()).default([]),
+  missing_nice_to_haves: z.array(z.string()).default([]),
 }).passthrough();
 
 const SCORING_AI_CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -186,6 +191,13 @@ export class CvScoringService {
             (s) => s === strippedReq || strippedReq.includes(s) || s.includes(strippedReq),
           );
         }
+      }
+
+      // Strategy 4: Normalize common variations (.net → dotnet, remove dots/dashes)
+      if (!hasMatch) {
+        const norm = (s: string) => s.toLowerCase().replace(/\.net\b/g, "dotnet").replace(/[\-_.]/g, "");
+        const normReq = norm(reqLower);
+        hasMatch = candidateSkillsLower.some((cs) => normReq === norm(cs));
       }
 
       if (hasMatch) {
@@ -429,21 +441,29 @@ export class CvScoringService {
     experiences: any[],
     certifications: any[],
     weights: ScoringWeights,
+    prompts?: Record<string, string>,
   ): Promise<{
     scores: z.infer<typeof aiScoringResultSchema>;
     analysis: string;
     details: Record<string, string>;
+    matched_skills: string[];
+    missing_requirements: string[];
+    missing_nice_to_haves: string[];
   } | null> {
     const openai = getOpenAI();
     if (!openai) return null;
 
     const template = company?.scoring_prompt_template || DEFAULT_SCORING_PROMPT;
-    const weightsText = buildWeightsText(weights);
+    const weightsText = buildWeightsText(weights, prompts);
 
     let prompt = template;
     const replacements: Record<string, string> = {
       jobTitle: job.title || "Untitled",
-      requirements: (job.requirement || []).join("\n"),
+      requirements: [
+        ...((job.requirement || []) as string[]),
+        ...((job.requirements || []) as string[]),
+        ...((job.skills || []).map((s: any) => s.name || s)),
+      ].filter(Boolean).join("\n"),
       niceToHaves: (job.nice_to_haves || []).join("\n"),
       weightsText,
       A1_REQUIRED: String(weights.A1_REQUIRED),
@@ -468,7 +488,11 @@ export class CvScoringService {
       certifications: certifications.map((c) => c.name).join(", ") || "None",
       customSectionsOutput: Object.entries(weights)
         .filter(([k]) => k.startsWith("CUSTOM_"))
-        .map(([k, v]) => `  "${k}": 0-${v}, "${k}_reason": "why this score",`)
+        .map(([k, v]) => {
+          const kw = k.slice(7);
+          const hint = prompts?.[kw] ? ` — ${prompts[kw]}` : "";
+          return `  "${k}": 0-${v}, "${k}_reason": "why this score${hint}",`;
+        })
         .join("\n"),
     };
 
@@ -509,7 +533,14 @@ export class CvScoringService {
         details[key] = (parsed as any)[reasonKey] || "";
       }
 
-      return { scores: clamped, analysis, details };
+      return {
+        scores: clamped,
+        analysis,
+        details,
+        matched_skills: parsed.matched_skills || [],
+        missing_requirements: parsed.missing_requirements || [],
+        missing_nice_to_haves: parsed.missing_nice_to_haves || [],
+      };
     } catch (err) {
       lastError = err;
     }
@@ -1098,9 +1129,13 @@ export class CvScoringService {
     let weights = baseWeights;
     // Resolve custom weights: job.scoring_weights > company.scoring_config (friend's UI)
     let customWeights: ScoringWeights | null = null;
-    if (job.scoring_weights) {
+    let customPrompts: Record<string, string> | undefined;
+    if (job.scoring_weights && typeof job.scoring_weights === "object" && !Array.isArray(job.scoring_weights)) {
       try {
-        customWeights = scoringWeightsSchema.parse(job.scoring_weights);
+        const raw = { ...(job.scoring_weights as Record<string, any>) };
+        customPrompts = raw.custom_section_prompts;
+        delete raw.custom_section_prompts;
+        customWeights = scoringWeightsSchema.parse(raw);
         verifyWeights(customWeights);
       } catch {
         customWeights = null;
@@ -1121,6 +1156,7 @@ export class CvScoringService {
           experiences,
           certifications,
           customWeights,
+          customPrompts,
         );
         if (aiResult) {
           const s = aiResult.scores as Record<string, any>;
@@ -1177,12 +1213,29 @@ export class CvScoringService {
           }
           if (bd.certifications) bd.certifications.reason = aiResult.details.D_CERTIFICATIONS || "";
           if (bd.experience) bd.experience.reason = aiResult.details.E_EXPERIENCE || "";
+          if (bd.metadata) {
+            bd.metadata.strengths = s.strengths || [];
+            bd.metadata.weaknesses = s.weaknesses || [];
+          }
 
-          // Compute missing items deterministically for consistency
-          const jobRequirements = [...(job.requirement || []), ...expandedJobSkills].filter(Boolean);
-          const a1Fallback = this.matchSkills(candidateSkillNames, jobRequirements, 100);
-          const jobNiceFallback = job.nice_to_haves || [];
-          const a2Fallback = this.matchSkills(candidateSkillNames, jobNiceFallback, 100);
+          // Use AI's skill lists; fall back to deterministic if empty
+          const aiMatched = aiResult.matched_skills || [];
+          const aiMissingReq = aiResult.missing_requirements || [];
+          const aiMissingNice = aiResult.missing_nice_to_haves || [];
+
+          const finalMatched = aiMatched.length > 0 ? aiMatched : (() => {
+            const jdTermSet = new Set(
+              [...expandedJobSkills, ...jobSkillNames].map((s) => s.toLowerCase().trim()),
+            );
+            return candidateSkillNames.filter((cs) => {
+              const csl = cs.toLowerCase().trim();
+              return [...jdTermSet].some((jt) => csl === jt || csl.includes(jt) || jt.includes(csl));
+            });
+          })();
+          const finalMissingReq = aiMissingReq.length > 0 ? aiMissingReq
+            : this.matchSkills(candidateSkillNames, [...(job.requirement || []), ...expandedJobSkills].filter(Boolean), 100).missing;
+          const finalMissingNice = aiMissingNice.length > 0 ? aiMissingNice
+            : this.matchSkills(candidateSkillNames, job.nice_to_haves || [], 100).missing;
 
           try {
             await supabase
@@ -1190,7 +1243,7 @@ export class CvScoringService {
               .update({
                 cv_score: finalScore,
                 cv_analysis: aiResult.analysis,
-                cv_matched_skills: candidateSkillNames,
+                cv_matched_skills: finalMatched,
                 cv_score_breakdown: breakdown,
                 updated_at: new Date().toISOString(),
               })
@@ -1200,9 +1253,9 @@ export class CvScoringService {
           }
           return {
             score: finalScore,
-            matched_skills: candidateSkillNames,
-            missing_requirements: a1Fallback.missing,
-            missing_nice_to_haves: a2Fallback.missing,
+            matched_skills: finalMatched,
+            missing_requirements: finalMissingReq,
+            missing_nice_to_haves: finalMissingNice,
             analysis: aiResult.analysis,
             score_breakdown: breakdown,
             debug: {
@@ -1331,6 +1384,15 @@ export class CvScoringService {
       eResult,
     );
 
+    // Compute candidate skills that actually appear in job terms
+    const jdTermSet = new Set(
+      [...expandedJobSkills, ...jobSkillNames].map((s) => s.toLowerCase().trim()),
+    );
+    const matchedSkills = candidateSkillNames.filter((cs) => {
+      const csl = cs.toLowerCase().trim();
+      return [...jdTermSet].some((jt) => csl === jt || csl.includes(jt) || jt.includes(csl));
+    });
+
     // --- 12. Persist to DB ---
     try {
       await supabase
@@ -1338,7 +1400,7 @@ export class CvScoringService {
         .update({
           cv_score: finalScore,
           cv_analysis: analysis,
-          cv_matched_skills: candidateSkillNames,
+          cv_matched_skills: matchedSkills,
           cv_missing_requirements: a1Result.missing,
           cv_score_breakdown: breakdown,
           updated_at: new Date().toISOString(),
@@ -1350,7 +1412,7 @@ export class CvScoringService {
 
     return {
       score: finalScore,
-      matched_skills: candidateSkillNames,
+      matched_skills: matchedSkills,
       missing_requirements: a1Result.missing,
       missing_nice_to_haves: a2Result.missing,
       analysis,

@@ -36,7 +36,7 @@ export const createJobSchema = z.object({
   apply_reasons: z.array(z.string()).optional(),
   status: z.string().optional(),
   quantity: z.number().int().positive().optional(),
-  scoring_weights: z.record(z.string(), z.number()).optional(),
+  scoring_weights: z.record(z.string(), z.union([z.number(), z.record(z.string(), z.string())])).optional(),
   // Relations
   company_branches_ids: z.array(z.number().int().positive()).min(1, "Please select at least one branch"),
   category_ids: z.array(z.number().int().positive()).min(1, "Please select at least one category"),
