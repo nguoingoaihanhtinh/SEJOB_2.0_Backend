@@ -18,7 +18,7 @@ import _ from "lodash";
 export class CompanyRepository {
   private readonly db: SupabaseClient;
   public readonly fields =
-    "id, external_id, name, scoring_config, is_active, tech_stack, logo, background, description, phone, email, website_url, socials, images, employee_count, user_id, created_at, updated_at, is_verified";
+    "id, external_id, name, scoring_config, scoring_prompt_template, is_active, tech_stack, logo, background, description, phone, email, website_url, socials, images, employee_count, user_id, created_at, updated_at, is_verified";
 
   constructor() {
     this.db = supabase;
