@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getOpenAI, getModel } from "@/utils/openai";
 import jobRepository from "@/repositories/job.repository";
+import companyRepository from "@/repositories/company.repository";
 import studentRepository from "@/repositories/student.repository";
 import applicationRepository from "@/repositories/application.repository";
 import { supabase } from "@/config/supabase";
@@ -9,7 +10,16 @@ import { recoverTruncatedJson } from "@/utils/json-recovery";
 import { downloadAndParseCv } from "@/utils/cv-parser";
 import { simpleCache } from "@/utils/cache";
 import logger from "@/utils/logger";
-import { ScoringWeights, getDynamicWeights, verifyWeights, DEFAULT_WEIGHTS } from "@/config/scoring-weights";
+import {
+  ScoringWeights,
+  getDynamicWeights,
+  verifyWeights,
+  DEFAULT_WEIGHTS,
+  buildWeightsText,
+  DEFAULT_SCORING_PROMPT,
+  scoringWeightsSchema,
+  convertCompanyScoringConfig,
+} from "@/config/scoring-weights";
 
 const clamp = (value: number, max: number, min: number = 0): number => Math.min(Math.max(value, min), max);
 
@@ -22,10 +32,28 @@ const C2_CACHE_TTL = 24 * 60 * 60 * 1000;
 const EXTRACTION_CACHE_TTL = 30 * 60 * 1000;
 const MIN_SKILLS_FOR_SKIP = 3;
 
+const AI_RETRY_DELAY = 1000;
+const AI_MAX_RETRIES = 1;
+
+const SKILL_MATCH_PREFIXES = [
+  "experience with ",
+  "experience in ",
+  "knowledge of ",
+  "familiarity with ",
+  "understanding of ",
+  "proficiency in ",
+  "skills in ",
+  "ability to use ",
+  "working knowledge of ",
+  "hands-on experience with ",
+  "basic knowledge of ",
+  "strong knowledge of ",
+];
+
 function hashCode(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = (hash << 5) - hash + str.charCodeAt(i);
     hash |= 0;
   }
   return (hash >>> 0).toString(36);
@@ -36,12 +64,52 @@ const extractionSchema = z.object({
   extracted_major: z.string().nullable().default(null),
   experience_level: z.string().nullable().default(null),
   has_it_cert: z.boolean().default(false),
-  projects: z.array(z.object({
-    name: z.string().default(""),
-    description: z.string().default(""),
-    technologies: z.array(z.string()).default([]),
-  })).default([]),
+  projects: z
+    .array(
+      z.object({
+        name: z.string().default(""),
+        description: z.string().default(""),
+        technologies: z.array(z.string()).default([]),
+      }),
+    )
+    .default([]),
+  experiences: z
+    .array(
+      z.object({
+        company: z.string().default(""),
+        position: z.string().default(""),
+        description: z.string().default(""),
+        is_current: z.boolean().default(false),
+      }),
+    )
+    .default([]),
 });
+
+const aiScoringResultSchema = z.object({
+  A1_REQUIRED: z.number().min(0).default(0),
+  A1_REQUIRED_reason: z.string().default(""),
+  A2_NICE: z.number().min(0).default(0),
+  A2_NICE_reason: z.string().default(""),
+  A3_SKILL_DEPTH: z.number().min(0).default(0),
+  A3_SKILL_DEPTH_reason: z.string().default(""),
+  B1_MAJOR: z.number().min(0).default(0),
+  B1_MAJOR_reason: z.string().default(""),
+  B2_COURSES: z.number().min(0).default(0),
+  B2_COURSES_reason: z.string().default(""),
+  C1_PROJECT_COUNT: z.number().min(0).default(0),
+  C1_PROJECT_COUNT_reason: z.string().default(""),
+  C2_PROJECT_RELEVANCE: z.number().min(0).default(0),
+  C2_PROJECT_RELEVANCE_reason: z.string().default(""),
+  C3_PROJECT_COMPLEXITY: z.number().min(0).default(0),
+  C3_PROJECT_COMPLEXITY_reason: z.string().default(""),
+  D_CERTIFICATIONS: z.number().min(0).default(0),
+  D_CERTIFICATIONS_reason: z.string().default(""),
+  E_EXPERIENCE: z.number().min(0).default(0),
+  E_EXPERIENCE_reason: z.string().default(""),
+  reasoning: z.string().default(""),
+}).passthrough();
+
+const SCORING_AI_CACHE_TTL = 24 * 60 * 60 * 1000;
 
 const relevanceProjectSchema = z.object({
   project_index: z.number(),
@@ -59,15 +127,15 @@ const relevanceSchema = z.object({
 
 export class CvScoringService {
   /**
-   * A1. Required Skills Match — 30đ (default) or 40đ (0-project fallback)
-   * Uses multiple matching strategies:
-   * 1. Direct word-boundary regex match
+   * A1/A2 — Generic skill matching used for both Required Skills and Nice-to-haves.
+   * Uses 3 strategies in order:
+   * 1. Direct word-boundary regex
    * 2. Bidirectional skill↔requirement matching
-   * 3. Normalized prefix-stripped matching (handles "Experience with X", "At least N years of Y")
+   * 3. Prefix-stripped matching ("Experience with X" → "X")
    */
-  private scoreRequiredSkills(
+  private matchSkills(
     candidateSkillNames: string[],
-    jobRequirements: string[],
+    requirements: string[],
     maxScore: number,
   ): { score: number; matched: string[]; missing: string[] } {
     const candidateSkillStr = candidateSkillNames.join(" ").toLowerCase();
@@ -76,28 +144,13 @@ export class CvScoringService {
     const matched: string[] = [];
     const missing: string[] = [];
 
-    // Common prefixes in JD requirement sentences
-    const sentencePrefixes = [
-      "experience with ",
-      "experience in ",
-      "knowledge of ",
-      "familiarity with ",
-      "understanding of ",
-      "proficiency in ",
-      "skills in ",
-      "ability to use ",
-      "working knowledge of ",
-      "hands-on experience with ",
-      "basic knowledge of ",
-      "strong knowledge of ",
-    ];
-
-    for (const req of jobRequirements) {
+    for (const req of requirements) {
       const reqLower = req.toLowerCase().trim();
       const escapedReq = escapeRegex(reqLower);
+      const reqRe = new RegExp(`\\b${escapedReq}\\b`, "i");
 
       // Strategy 1: Direct word-boundary match
-      let hasMatch = new RegExp(`\\b${escapedReq}\\b`, "i").test(candidateSkillStr);
+      let hasMatch = reqRe.test(candidateSkillStr);
 
       // Strategy 2: Bidirectional matching
       if (!hasMatch) {
@@ -105,7 +158,7 @@ export class CvScoringService {
           const skillLower = skill.toLowerCase();
           const escapedSkill = escapeRegex(skillLower);
 
-          if (new RegExp(`\\b${escapedReq}\\b`, "i").test(skillLower)) return true;
+          if (reqRe.test(skillLower)) return true;
 
           if (reqLower.includes(" ")) {
             return new RegExp(`\\b${escapedSkill}\\b`, "i").test(reqLower) || reqLower.includes(skillLower);
@@ -114,21 +167,19 @@ export class CvScoringService {
         });
       }
 
-      // Strategy 3: Strip common sentence prefixes and match the core skill name
+      // Strategy 3: Strip sentence prefixes and match core name
       if (!hasMatch) {
-        let strippedReq = reqLower;
-        // Remove leading "at least N years" type patterns
-        strippedReq = strippedReq.replace(
-          /^at least \d+\+?\s*(years?|yrs?)\s*(of\s*)?(experience\s*)?(with\s*|in\s*)?/i,
-          "",
-        );
-        for (const prefix of sentencePrefixes) {
+        let strippedReq = reqLower
+          .replace(/^at least \d+\+?\s*(years?|yrs?)\s*(of\s*)?(experience\s*)?(with\s*|in\s*)?/i, "")
+          .replace(/[.,;:!?]+$/, "")
+          .trim();
+
+        for (const prefix of SKILL_MATCH_PREFIXES) {
           if (strippedReq.startsWith(prefix)) {
             strippedReq = strippedReq.slice(prefix.length).trim();
             break;
           }
         }
-        strippedReq = strippedReq.replace(/[.,;:!?]+$/, "").trim();
 
         if (strippedReq.length > 0) {
           hasMatch = candidateSkillsLower.some(
@@ -145,96 +196,7 @@ export class CvScoringService {
       }
     }
 
-    const score = jobRequirements.length > 0 ? (matchedCount / jobRequirements.length) * maxScore : maxScore; // No requirements → full score
-
-    return { score: Math.round(score), matched, missing };
-  }
-
-  /**
-   * A2. Nice-to-have Skills Match — 10đ
-   * Uses multiple matching strategies:
-   * 1. Direct word-boundary regex match
-   * 2. Bidirectional skill↔requirement matching
-   * 3. Normalized prefix-stripped matching (handles "Experience with X", "Knowledge of Y")
-   */
-  private scoreNiceToHave(
-    candidateSkillNames: string[],
-    jobNiceToHaves: string[],
-    maxScore: number,
-  ): { score: number; matched: string[]; missing: string[] } {
-    const candidateSkillStr = candidateSkillNames.join(" ").toLowerCase();
-    const candidateSkillsLower = candidateSkillNames.map((s) => s.toLowerCase().trim());
-    let matchedCount = 0;
-    const matched: string[] = [];
-    const missing: string[] = [];
-
-    // Common prefixes in nice-to-have sentences that wrap actual skill names
-    const sentencePrefixes = [
-      "experience with ",
-      "experience in ",
-      "knowledge of ",
-      "familiarity with ",
-      "understanding of ",
-      "proficiency in ",
-      "skills in ",
-      "ability to use ",
-      "working knowledge of ",
-      "hands-on experience with ",
-      "basic knowledge of ",
-      "strong knowledge of ",
-    ];
-
-    for (const req of jobNiceToHaves) {
-      const reqLower = req.toLowerCase().trim();
-      const escapedReq = escapeRegex(reqLower);
-
-      // Strategy 1: Direct word-boundary match of full requirement in candidate skills
-      let hasMatch = new RegExp(`\\b${escapedReq}\\b`, "i").test(candidateSkillStr);
-
-      // Strategy 2: Bidirectional matching (same as A1)
-      if (!hasMatch) {
-        hasMatch = candidateSkillNames.some((skill) => {
-          const skillLower = skill.toLowerCase();
-          const escapedSkill = escapeRegex(skillLower);
-
-          if (new RegExp(`\\b${escapedReq}\\b`, "i").test(skillLower)) return true;
-
-          if (reqLower.includes(" ")) {
-            return new RegExp(`\\b${escapedSkill}\\b`, "i").test(reqLower) || reqLower.includes(skillLower);
-          }
-          return false;
-        });
-      }
-
-      // Strategy 3: Strip common sentence prefixes and match the core skill name
-      if (!hasMatch) {
-        let strippedReq = reqLower;
-        for (const prefix of sentencePrefixes) {
-          if (strippedReq.startsWith(prefix)) {
-            strippedReq = strippedReq.slice(prefix.length).trim();
-            break;
-          }
-        }
-        // Also remove trailing punctuation
-        strippedReq = strippedReq.replace(/[.,;:!?]+$/, "").trim();
-
-        if (strippedReq.length > 0) {
-          hasMatch = candidateSkillsLower.some(
-            (s) => s === strippedReq || strippedReq.includes(s) || s.includes(strippedReq),
-          );
-        }
-      }
-
-      if (hasMatch) {
-        matchedCount++;
-        matched.push(req);
-      } else {
-        missing.push(req);
-      }
-    }
-
-    const score = jobNiceToHaves.length > 0 ? (matchedCount / jobNiceToHaves.length) * maxScore : maxScore; // No nice-to-haves → full score
-
+    const score = requirements.length > 0 ? (matchedCount / requirements.length) * maxScore : maxScore;
     return { score: Math.round(score), matched, missing };
   }
 
@@ -456,6 +418,107 @@ export class CvScoringService {
   }
 
   /**
+   * AI-based scoring using configurable weights + prompt template per job/company.
+   */
+  private async scoreWithAI(
+    job: any,
+    company: any,
+    candidateSkillNames: string[],
+    educations: any[],
+    projects: any[],
+    experiences: any[],
+    certifications: any[],
+    weights: ScoringWeights,
+  ): Promise<{
+    scores: z.infer<typeof aiScoringResultSchema>;
+    analysis: string;
+    details: Record<string, string>;
+  } | null> {
+    const openai = getOpenAI();
+    if (!openai) return null;
+
+    const template = company?.scoring_prompt_template || DEFAULT_SCORING_PROMPT;
+    const weightsText = buildWeightsText(weights);
+
+    let prompt = template;
+    const replacements: Record<string, string> = {
+      jobTitle: job.title || "Untitled",
+      requirements: (job.requirement || []).join("\n"),
+      niceToHaves: (job.nice_to_haves || []).join("\n"),
+      weightsText,
+      A1_REQUIRED: String(weights.A1_REQUIRED),
+      A2_NICE: String(weights.A2_NICE),
+      A3_SKILL_DEPTH: String(weights.A3_SKILL_DEPTH),
+      B1_MAJOR: String(weights.B1_MAJOR),
+      B2_COURSES: String(weights.B2_COURSES),
+      C1_PROJECT_COUNT: String(weights.C1_PROJECT_COUNT),
+      C2_PROJECT_RELEVANCE: String(weights.C2_PROJECT_RELEVANCE),
+      C3_PROJECT_COMPLEXITY: String(weights.C3_PROJECT_COMPLEXITY),
+      D_CERTIFICATIONS: String(weights.D_CERTIFICATIONS),
+      E_EXPERIENCE: String(weights.E_EXPERIENCE),
+      educations:
+        educations
+          .map((e) => `${e.major} ${e.degree} ${e.school}`)
+          .filter(Boolean)
+          .join("; ") || "None",
+      skills: candidateSkillNames.join(", ") || "None",
+      projects:
+        projects.map((p) => `${p.name}: ${p.description} [${(p.technologies || []).join(", ")}]`).join("\n") || "None",
+      experiences: experiences.map((e) => `${e.position} at ${e.company}: ${e.description || ""}`).join("\n") || "None",
+      certifications: certifications.map((c) => c.name).join(", ") || "None",
+      customSectionsOutput: Object.entries(weights)
+        .filter(([k]) => k.startsWith("CUSTOM_"))
+        .map(([k, v]) => `  "${k}": 0-${v}, "${k}_reason": "why this score",`)
+        .join("\n"),
+    };
+
+    for (const [key, val] of Object.entries(replacements)) {
+      prompt = prompt.replaceAll(`{{${key}}}`, val);
+    }
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, AI_RETRY_DELAY));
+      try {
+        const response = await openai.chat.completions.create({
+          model: getModel(),
+          messages: [
+            { role: "system", content: "You are a precise CV scoring engine. Return valid JSON only." },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0,
+          max_tokens: 2000,
+        });
+
+        const raw = response.choices[0]?.message?.content;
+        if (!raw) { lastError = new Error("Empty AI response"); continue; }
+
+        const parsed = aiScoringResultSchema.parse(recoverTruncatedJson(raw));
+
+      const clamped = { ...parsed };
+      for (const key of Object.keys(weights) as (keyof ScoringWeights)[]) {
+        (clamped as any)[key] = clamp((clamped as any)[key] || 0, (weights as any)[key]);
+      }
+
+      const analysis = parsed.reasoning || "AI scored based on configured weights.";
+
+      const details: Record<string, string> = {};
+      for (const key of Object.keys(weights) as (keyof ScoringWeights)[]) {
+        const reasonKey = `${key}_reason` as string;
+        details[key] = (parsed as any)[reasonKey] || "";
+      }
+
+      return { scores: clamped, analysis, details };
+    } catch (err) {
+      lastError = err;
+    }
+    }
+    logger.warn("[CV Scoring] AI scoring failed after retries:", lastError);
+    return null;
+  }
+
+  /**
    * A3. Skill Depth Bonus — 5đ
    * Detects if candidate actually used the skills in projects or experiences vs just listing them.
    */
@@ -467,24 +530,22 @@ export class CvScoringService {
   ): number {
     if (!candidateSkillNames.length) return 0;
 
+    const skillRegexes = candidateSkillNames.map(
+      (skill) => new RegExp(`\\b${escapeRegex(skill.toLowerCase())}\\b`, "i"),
+    );
+
+    const projectTexts = projects.map(
+      (p) => `${p.description || ""} ${(p.technologies || []).join(" ")}`.toLowerCase(),
+    );
+    const experienceTexts = experiences.map((e) => (e.description || "").toLowerCase());
+
     let demonstratedCount = 0;
+    for (const re of skillRegexes) {
+      const usedInProjects = projectTexts.some((text) => re.test(text));
+      const usedInExperience = experienceTexts.some((text) => re.test(text));
+      if (usedInProjects || usedInExperience) demonstratedCount++;
+    }
 
-    candidateSkillNames.forEach((skill) => {
-      const escapedSkill = escapeRegex(skill.toLowerCase());
-      const regex = new RegExp(`\\b${escapedSkill}\\b`, "i");
-
-      const usedInProjects = projects.some(
-        (p) => regex.test(p.description || "") || regex.test((p.technologies || []).join(" ")),
-      );
-
-      const usedInExperience = experiences.some((exp) => regex.test(exp.description || ""));
-
-      if (usedInProjects || usedInExperience) {
-        demonstratedCount++;
-      }
-    });
-
-    // Award maxScore if at least 50% of listed skills have demonstrated usage
     return demonstratedCount >= candidateSkillNames.length * 0.5 ? maxScore : 0;
   }
 
@@ -596,7 +657,22 @@ export class CvScoringService {
       }
 
       // Priority 2: Language proficiency certs (IELTS, TOEIC, TOEFL, etc.)
-      const langKeywords = ["ielts", "toeic", "toefl", "tiếng anh", "tieng anh", "ngoại ngữ", "foreign language", "language", "japanese", "tiếng nhật", "chinese", "tiếng trung", "korean", "tiếng hàn"];
+      const langKeywords = [
+        "ielts",
+        "toeic",
+        "toefl",
+        "tiếng anh",
+        "tieng anh",
+        "ngoại ngữ",
+        "foreign language",
+        "language",
+        "japanese",
+        "tiếng nhật",
+        "chinese",
+        "tiếng trung",
+        "korean",
+        "tiếng hàn",
+      ];
       const isLangCert = langKeywords.some((kw) => certName.includes(kw) || certText.includes(kw));
 
       if (isLangCert) {
@@ -659,10 +735,12 @@ export class CvScoringService {
       `Job: ${job.title}`,
       `Requirements: ${((job.requirement || job.requirements || []) as string[]).join(", ")}`,
       `Projects:`,
-      ...projects.slice(0, 5).map(
-        (p, i) =>
-          `[${i + 1}] ${p.name} | ${(p.description || "").substring(0, 200)} | Tech: ${(p.technologies || []).join(", ")}`,
-      ),
+      ...projects
+        .slice(0, 5)
+        .map(
+          (p, i) =>
+            `[${i + 1}] ${p.name} | ${(p.description || "").substring(0, 200)} | Tech: ${(p.technologies || []).join(", ")}`,
+        ),
       `Rate each 0-10 on tech alignment & complexity. Return JSON: {"projects":[{"project_index":N,"relevance_score":N,"reason":"..."}]}`,
     ].join("\n");
 
@@ -675,7 +753,7 @@ export class CvScoringService {
             { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
-          temperature: 0.1,
+          temperature: 0,
           max_tokens: 800,
         });
 
@@ -717,17 +795,16 @@ export class CvScoringService {
   ): { score: number; details: string } {
     const jobReqs = [
       ...((job.requirement || job.requirements || []) as string[]),
-      ...((job.skills || []).map((s: any) => s.name)),
+      ...(job.skills || []).map((s: any) => s.name),
     ].map((r: string) => r.toLowerCase());
 
     if (jobReqs.length === 0) return { score: 0, details: "No job requirements to compare" };
 
     let bestOverlap = 0;
     for (const p of projects) {
-      const techText = [
-        ...(p.technologies || []),
-        ...(p.description || "").toLowerCase().split(/[\s,;]+/),
-      ].filter(Boolean);
+      const techText = [...(p.technologies || []), ...(p.description || "").toLowerCase().split(/[\s,;]+/)].filter(
+        Boolean,
+      );
       const overlap = jobReqs.filter((req: string) => techText.some((t: string) => t.includes(req))).length;
       bestOverlap = Math.max(bestOverlap, overlap);
     }
@@ -741,9 +818,9 @@ export class CvScoringService {
 
   /**
    * B2. Course/Skills Mapping — 15đ
-    * Cross-references the student's education fields with job requirements
-    * via the skill-mapping table.
-    */
+   * Cross-references the student's education fields with job requirements
+   * via the skill-mapping table.
+   */
   // ==========================================================================
   // MAIN SCORING METHOD
   // ==========================================================================
@@ -781,6 +858,10 @@ export class CvScoringService {
     const { job } = jobResult;
     const student = studentResult;
     const commonSkills = commonSkillsResult.data || [];
+
+    // Fetch company for scoring config
+    const companyResult = job?.company_id ? await companyRepository.findOne({ company_id: job.company_id }) : null;
+    const company = companyResult || null;
     let educations: any[] = [];
     let experiences: any[] = [];
     let projects: any[] = [];
@@ -845,30 +926,24 @@ export class CvScoringService {
     // --- 6. AI Scan for Candidate's Common Skills & Categories ---
     let aiExtractedSkillIds: number[] = [];
 
-    const hasUsefulEducation = educations.some(
-      (e) => e.major || e.degree,
-    );
-    const hasSufficientData = (student?.skills?.length || 0) >= MIN_SKILLS_FOR_SKIP
-      && experiences.length > 0
-      && hasUsefulEducation;
+    const hasUsefulEducation = educations.some((e) => e.major || e.degree);
 
     const extractionCacheKey = student
       ? `cv_extract:${userId}:${hashCode(`${expandedCandidateSkills.join(",")}|${experiences.length}|${projects.length}|${certifications.length}`)}`
       : null;
 
+    let parsedExtraction: z.infer<typeof extractionSchema> | null = null;
+
     if (extractionCacheKey) {
-      const cached = simpleCache.get<number[]>(extractionCacheKey);
-      if (cached) {
-        aiExtractedSkillIds = cached;
-      }
+      const cached = simpleCache.get<z.infer<typeof extractionSchema>>(extractionCacheKey);
+      if (cached) parsedExtraction = cached;
     }
 
-    if (aiExtractedSkillIds.length === 0 && !hasSufficientData) {
+    if (!parsedExtraction) {
       const cvText = [
         `About: ${(student as any)?.about || "N/A"}`,
         ...experiences.map((e) => `${e.position} ${e.description}`),
         ...projects.map((p) => `${p.name} ${p.description}`),
-        `Skills: ${expandedCandidateSkills.join(", ")}`,
         pdfText.length > 20 ? `\n--- PDF EXTRACT ---\n${pdfText.substring(0, 6000)}` : "",
       ]
         .filter(Boolean)
@@ -879,11 +954,11 @@ export class CvScoringService {
       if (openaiInstance && cvText.length > 20 && commonSkills.length > 0) {
         const skillNamesList = commonSkills.map((s) => s.name).join(", ");
         const prompt = [
-          `Extract skills matching the Valid Skills list from this CV.`,
-          `If data is sparse, extract major, experience_level, has_it_cert, and up to 3 projects.`,
+          `Extract skills matching the Valid Skills list and work experiences from this CV.`,
+          `Also extract major, experience_level, has_it_cert, and up to 3 projects.`,
           `Valid Skills: ${skillNamesList}`,
           `CV:\n${cvText.substring(0, 5000)}`,
-          `Return JSON: {"skills":[],"extracted_major":null,"experience_level":null,"has_it_cert":false,"projects":[]}`,
+          `Return JSON: {"skills":[],"extracted_major":null,"experience_level":null,"has_it_cert":false,"projects":[],"experiences":[]}`,
         ].join("\n");
 
         const attempt = async (): Promise<any | null> => {
@@ -895,8 +970,8 @@ export class CvScoringService {
                 { role: "user", content: prompt },
               ],
               response_format: { type: "json_object" },
-              temperature: 0.1,
-              max_tokens: 1500,
+              temperature: 0,
+              max_tokens: 2000,
             });
             const raw = response.choices[0]?.message?.content;
             if (!raw) return null;
@@ -908,58 +983,71 @@ export class CvScoringService {
 
         const parsed = await attempt();
         if (parsed) {
-          const extractedNames: string[] = Array.isArray(parsed.skills)
-            ? parsed.skills.filter((s: any) => typeof s === "string")
-            : [];
-
-          if (parsed.extracted_major && !hasUsefulEducation) {
-            if (educations.length === 0) {
-              educations.push({ degree: "AI Extracted", major: parsed.extracted_major, school: "UIT (AI)" });
-            } else {
-              educations = educations.map((e) =>
-                e.major || e.degree
-                  ? e
-                  : { ...e, major: parsed.extracted_major },
-              );
-            }
-          }
-
-          if (projects.length === 0 && Array.isArray(parsed.projects) && parsed.projects.length > 0) {
-            projects = parsed.projects.map((p: any) => ({
-              name: p.name || "Unnamed Project",
-              description: p.description || "",
-              technologies: Array.isArray(p.technologies) ? p.technologies : [],
-            }));
-          }
-
-          if (experiences.length === 0 && parsed.experience_level && parsed.experience_level !== "none") {
-            experiences.push({
-              position: "AI Extracted Role",
-              company: "CV Reference",
-              description: parsed.experience_level,
-            });
-          }
-
-          if (certifications.length === 0 && parsed.has_it_cert) {
-            certifications.push({ name: "AI Extracted IT Certification" });
-            const langKeywords = ["ielts", "toeic", "toefl", "tiếng anh", "tieng anh", "ngoại ngữ"];
-            if (langKeywords.some(kw => cvText.toLowerCase().includes(kw))) {
-              certifications.push({ name: "Language Certification (from CV)" });
-            }
-          }
-
-          aiExtractedSkillIds = extractedNames
-            .map((name) => {
-              const match = commonSkills.find((cs) => cs.name.toLowerCase() === name.toLowerCase().trim());
-              return match?.id ?? null;
-            })
-            .filter((id): id is number => id !== null);
-
+          parsedExtraction = parsed;
           if (extractionCacheKey) {
-            simpleCache.set(extractionCacheKey, aiExtractedSkillIds, EXTRACTION_CACHE_TTL);
+            simpleCache.set(extractionCacheKey, parsedExtraction, EXTRACTION_CACHE_TTL);
           }
         }
       }
+    }
+
+    // Apply AI extraction result (from API or cache) to scoring data
+    if (parsedExtraction) {
+      const pe = parsedExtraction;
+      const extractedNames: string[] = Array.isArray(pe.skills)
+        ? pe.skills.filter((s: any) => typeof s === "string")
+        : [];
+
+      if (pe.extracted_major && !hasUsefulEducation) {
+        if (educations.length === 0) {
+          educations.push({ degree: "AI Extracted", major: pe.extracted_major, school: "UIT (AI)" });
+        } else {
+          educations = educations.map((e) => (e.major || e.degree ? e : { ...e, major: pe.extracted_major }));
+        }
+      }
+
+      if (projects.length === 0 && Array.isArray(pe.projects) && pe.projects.length > 0) {
+        projects = pe.projects.map((p: any) => ({
+          name: p.name || "Unnamed Project",
+          description: p.description || "",
+          technologies: Array.isArray(p.technologies) ? p.technologies : [],
+        }));
+      }
+
+      if (Array.isArray(pe.experiences) && pe.experiences.length > 0) {
+        for (const aiExp of pe.experiences) {
+          if (
+            !experiences.some(
+              (e) =>
+                e.position?.toLowerCase() === aiExp.position?.toLowerCase() &&
+                e.company?.toLowerCase() === aiExp.company?.toLowerCase(),
+            )
+          ) {
+            experiences.push({
+              position: aiExp.position || "AI Extracted Role",
+              company: aiExp.company || "CV Reference",
+              description: aiExp.description || pe.experience_level || "",
+            });
+          }
+        }
+      } else if (experiences.length === 0 && pe.experience_level && pe.experience_level !== "none") {
+        experiences.push({
+          position: "AI Extracted Role",
+          company: "CV Reference",
+          description: pe.experience_level,
+        });
+      }
+
+      if (certifications.length === 0 && pe.has_it_cert) {
+        certifications.push({ name: "AI Extracted IT Certification" });
+      }
+
+      aiExtractedSkillIds = extractedNames
+        .map((name) => {
+          const match = commonSkills.find((cs) => cs.name.toLowerCase() === name.toLowerCase().trim());
+          return match?.id ?? null;
+        })
+        .filter((id): id is number => id !== null);
     }
 
     // Fallback: scan PDF for language certs if none found in DB or AI extraction
@@ -969,7 +1057,13 @@ export class CvScoringService {
       if (lower.includes("toeic")) langCertName = "TOEIC";
       else if (lower.includes("ielts")) langCertName = "IELTS";
       else if (lower.includes("toefl")) langCertName = "TOEFL";
-      else if (lower.includes("tiếng anh") || lower.includes("tieng anh") || lower.includes("ngoại ngữ") || lower.includes("foreign language")) langCertName = "Language Certification";
+      else if (
+        lower.includes("tiếng anh") ||
+        lower.includes("tieng anh") ||
+        lower.includes("ngoại ngữ") ||
+        lower.includes("foreign language")
+      )
+        langCertName = "Language Certification";
       if (langCertName) certifications.push({ name: langCertName });
     }
 
@@ -998,19 +1092,155 @@ export class CvScoringService {
 
     // --- 7. Get Dynamic Weights ---
     const hasProjects = projects.length > 0;
-    const weights = getDynamicWeights(hasProjects);
-    verifyWeights(weights);
+    const baseWeights = getDynamicWeights(hasProjects);
 
-    // --- 8. Score Each Component ---
+    // --- 7b. AI Scoring (if custom weights available) ---
+    let weights = baseWeights;
+    // Resolve custom weights: job.scoring_weights > company.scoring_config (friend's UI)
+    let customWeights: ScoringWeights | null = null;
+    if (job.scoring_weights) {
+      try {
+        customWeights = scoringWeightsSchema.parse(job.scoring_weights);
+        verifyWeights(customWeights);
+      } catch {
+        customWeights = null;
+      }
+    }
+    if (!customWeights) {
+      customWeights = convertCompanyScoringConfig(company?.scoring_config);
+    }
+
+    if (customWeights) {
+      try {
+        const aiResult = await this.scoreWithAI(
+          job,
+          company,
+          candidateSkillNames,
+          educations,
+          projects,
+          experiences,
+          certifications,
+          customWeights,
+        );
+        if (aiResult) {
+          const s = aiResult.scores as Record<string, any>;
+
+          let finalScore = s.A1_REQUIRED + s.A2_NICE + s.A3_SKILL_DEPTH + s.B1_MAJOR + s.B2_COURSES +
+            s.C1_PROJECT_COUNT + s.C2_PROJECT_RELEVANCE + s.C3_PROJECT_COMPLEXITY + s.D_CERTIFICATIONS + s.E_EXPERIENCE;
+          const customScores: Record<string, number> = {};
+          for (const key of Object.keys(s)) {
+            if (key.startsWith("CUSTOM_") && typeof s[key] === "number") {
+              const val = clamp(s[key], (customWeights as any)[key] ?? 0);
+              customScores[key] = val;
+              finalScore += val;
+            }
+          }
+          finalScore = clamp(finalScore, 100);
+
+          const breakdown = this.buildScoreBreakdown(
+            {
+              a1: s.A1_REQUIRED,
+              a2: s.A2_NICE,
+              a3: s.A3_SKILL_DEPTH,
+              b1: s.B1_MAJOR,
+              b2: s.B2_COURSES,
+              c1: s.C1_PROJECT_COUNT,
+              c2: s.C2_PROJECT_RELEVANCE,
+              c3: s.C3_PROJECT_COMPLEXITY,
+              d: s.D_CERTIFICATIONS,
+              e: s.E_EXPERIENCE,
+            },
+            customWeights,
+            hasProjects,
+            { matched: [], missing: [] },
+            { matched: [], missing: [] },
+            { reason: "" },
+            { details: "" },
+            { details: "" },
+            customScores,
+            aiResult.details,
+          );
+          // Inject per-component reasoning from AI into breakdown
+          const bd: any = breakdown;
+          if (bd.technical_skills) {
+            if (bd.technical_skills.required) bd.technical_skills.required.reason = aiResult.details.A1_REQUIRED || "";
+            if (bd.technical_skills.nice_to_have)
+              bd.technical_skills.nice_to_have.reason = aiResult.details.A2_NICE || "";
+            if (bd.technical_skills.skill_depth)
+              bd.technical_skills.skill_depth.reason = aiResult.details.A3_SKILL_DEPTH || "";
+          }
+          if (bd.academic?.major) bd.academic.major.reason = aiResult.details.B1_MAJOR || "";
+          if (bd.projects) {
+            if (bd.projects.count) bd.projects.count.reason = aiResult.details.C1_PROJECT_COUNT || "";
+            if (bd.projects.relevance) bd.projects.relevance.reason = aiResult.details.C2_PROJECT_RELEVANCE || "";
+            if (bd.projects.complexity) bd.projects.complexity.reason = aiResult.details.C3_PROJECT_COMPLEXITY || "";
+          }
+          if (bd.certifications) bd.certifications.reason = aiResult.details.D_CERTIFICATIONS || "";
+          if (bd.experience) bd.experience.reason = aiResult.details.E_EXPERIENCE || "";
+
+          // Compute missing items deterministically for consistency
+          const jobRequirements = [...(job.requirement || []), ...expandedJobSkills].filter(Boolean);
+          const a1Fallback = this.matchSkills(candidateSkillNames, jobRequirements, 100);
+          const jobNiceFallback = job.nice_to_haves || [];
+          const a2Fallback = this.matchSkills(candidateSkillNames, jobNiceFallback, 100);
+
+          try {
+            await supabase
+              .from("applications")
+              .update({
+                cv_score: finalScore,
+                cv_analysis: aiResult.analysis,
+                cv_matched_skills: candidateSkillNames,
+                cv_score_breakdown: breakdown,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", applicationId);
+          } catch (dbError) {
+            logger.error("Failed to persist AI score", dbError);
+          }
+          return {
+            score: finalScore,
+            matched_skills: candidateSkillNames,
+            missing_requirements: a1Fallback.missing,
+            missing_nice_to_haves: a2Fallback.missing,
+            analysis: aiResult.analysis,
+            score_breakdown: breakdown,
+            debug: {
+              candidate_skills_expanded: expandedCandidateSkills,
+              jd_skills_expanded: expandedJobSkills,
+              openai_common_skills_extracted: candidateSkillNames,
+              ai_skill_ids_extracted: aiExtractedSkillIds,
+              pdf_text_length: pdfText.length,
+              common_skills_in_db: commonSkills.length,
+              ai_extraction_ran: aiExtractedSkillIds.length > 0,
+              has_projects: hasProjects,
+              scoring_mode: "ai",
+            },
+            is_cached: false,
+          };
+        }
+      } catch (err) {
+        logger.warn("[CV Scoring] AI scoring init failed, fallback to deterministic:", err);
+      }
+      // AI failed or not available — use custom weights for deterministic (safe parse)
+      try {
+        verifyWeights(customWeights);
+        weights = customWeights;
+      } catch {
+        logger.warn("[CV Scoring] Invalid custom weights for deterministic fallback, using defaults");
+      }
+    }
+
+    // --- 8. Score Each Component (deterministic) ---
 
     // A1. Required Skills Match
     const jobRequirements = [...(job.requirement || []), ...expandedJobSkills].filter(Boolean);
-    const a1Result = this.scoreRequiredSkills(candidateSkillNames, jobRequirements, weights.A1_REQUIRED);
+    const a1Result = this.matchSkills(candidateSkillNames, jobRequirements, weights.A1_REQUIRED);
     const a1Score = clamp(a1Result.score, weights.A1_REQUIRED);
 
     // A2. Nice-to-have Match
     const jobNice = job.nice_to_haves || [];
-    const a2Result = this.scoreNiceToHave(candidateSkillNames, jobNice, weights.A2_NICE);
+    const a2Result = this.matchSkills(candidateSkillNames, jobNice, weights.A2_NICE);
     const a2Score = clamp(a2Result.score, weights.A2_NICE);
 
     // A3. Skill Depth Bonus
@@ -1162,9 +1392,40 @@ export class CvScoringService {
     b1Result: { reason: string },
     c2Result: { details: string },
     eResult: { details: string },
+    customScores: Record<string, number> = {},
+    customDetails: Record<string, string> = {},
   ) {
     const note = !hasProjects ? "Weight increased due to 0 projects" : undefined;
     const projectNote = !hasProjects ? "No projects — weight redistributed to A1/B1/E" : undefined;
+
+    const isCustomized = (Object.keys(weights) as (keyof ScoringWeights)[])
+      .some((k) => k.startsWith("CUSTOM_") || weights[k] !== DEFAULT_WEIGHTS[k]);
+    const adjustments: string[] = [];
+    if (isCustomized) {
+      for (const [key, val] of Object.entries(weights)) {
+        if (typeof val !== "number") continue;
+        const defaultVal = (DEFAULT_WEIGHTS as any)[key] ?? 0;
+        if (val !== defaultVal) {
+          const diff = val - defaultVal;
+          adjustments.push(`${key}: ${defaultVal} → ${val} (${diff >= 0 ? "+" : ""}${diff})`);
+        }
+      }
+    }
+
+    const customSections = Object.fromEntries(
+      Object.entries(customScores).map(([k, v]) => [
+        k,
+        {
+          score: v,
+          max: weights[k as keyof typeof weights] ?? 0,
+          reason: customDetails[k] || "",
+        },
+      ]),
+    );
+
+    const standardTotal =
+      scores.a1 + scores.a2 + scores.a3 + scores.b1 + scores.c1 + scores.c2 + scores.c3 + scores.d + scores.e;
+    const customTotal = Object.values(customScores).reduce((s, v) => s + v, 0);
 
     return {
       technical_skills: {
@@ -1232,26 +1493,12 @@ export class CvScoringService {
         details: eResult.details,
         note,
       },
+      ...(Object.keys(customSections).length > 0 ? { custom_sections: customSections } : {}),
       metadata: {
-        total_score:
-          scores.a1 +
-          scores.a2 +
-          scores.a3 +
-          scores.b1 +
-          scores.c1 +
-          scores.c2 +
-          scores.c3 +
-          scores.d +
-          scores.e,
+        total_score: standardTotal + customTotal,
         total_max: 100,
-        dynamic_weights_applied: !hasProjects,
-        weight_adjustments: !hasProjects
-          ? [
-              `A1: ${DEFAULT_WEIGHTS.A1_REQUIRED} → ${weights.A1_REQUIRED} (+${weights.A1_REQUIRED - DEFAULT_WEIGHTS.A1_REQUIRED})`,
-              `B1: ${DEFAULT_WEIGHTS.B1_MAJOR} → ${weights.B1_MAJOR} (+${weights.B1_MAJOR - DEFAULT_WEIGHTS.B1_MAJOR})`,
-              `E: ${DEFAULT_WEIGHTS.E_EXPERIENCE} → ${weights.E_EXPERIENCE} (+${weights.E_EXPERIENCE - DEFAULT_WEIGHTS.E_EXPERIENCE})`,
-            ]
-          : [],
+        dynamic_weights_applied: isCustomized || !hasProjects,
+        weight_adjustments: adjustments,
       },
     };
   }
