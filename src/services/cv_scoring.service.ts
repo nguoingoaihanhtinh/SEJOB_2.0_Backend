@@ -498,7 +498,7 @@ export class CvScoringService {
           ],
           response_format: { type: "json_object" },
           temperature: 0,
-          max_tokens: 500,
+          max_tokens: 1000,
         });
 
         const raw = response.choices[0]?.message?.content;
@@ -992,7 +992,7 @@ export class CvScoringService {
               ],
               response_format: { type: "json_object" },
               temperature: 0,
-              max_tokens: 2000,
+              max_tokens: 1000,
             });
             const raw = response.choices[0]?.message?.content;
             if (!raw) return null;
