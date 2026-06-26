@@ -20,6 +20,14 @@ import {
   scoringWeightsSchema,
   convertCompanyScoringConfig,
 } from "@/config/scoring-weights";
+import {
+  findSchool,
+  classifyMajor,
+  getScoreMultiplier,
+  getSchoolAbbreviation,
+  normalizeSchoolName,
+  SchoolTier,
+} from "@/config/major-data";
 
 const clamp = (value: number, max: number, min: number = 0): number => Math.min(Math.max(value, min), max);
 
@@ -48,7 +56,34 @@ const SKILL_MATCH_PREFIXES = [
   "hands-on experience with ",
   "basic knowledge of ",
   "strong knowledge of ",
+  // Vietnamese education prefixes — these get stripped to leave just the major name
+  "tốt nghiệp hoặc đang học năm cuối chuyên ngành ",
+  "tốt nghiệp hoặc đang học năm cuối ngành ",
+  "tốt nghiệp chuyên ngành ",
+  "tốt nghiệp ngành ",
+  "chuyên ngành ",
+  // Vietnamese nice-to-have prefixes
+  "có kinh nghiệm với ",
+  "có kinh nghiệm về ",
+  "có kiến thức về ",
+  "hiểu biết về ",
+  "am hiểu về ",
+  "kinh nghiệm với ",
+  "kinh nghiệm về ",
 ];
+
+/**
+ * Detect Vietnamese education/graduation requirements (handled by B1, not A1).
+ * These are sentences like "Tốt nghiệp hoặc đang học năm cuối chuyên ngành CNTT..."
+ */
+function isEducationRequirement(text: string): boolean {
+  if (typeof text !== "string") return false;
+  const lower = text.toLowerCase().trim();
+  return (
+    /^(tốt nghiệp|đang học|graduat(e|ing)|major(ing)?\s+in)/i.test(lower) ||
+    /(chuyên ngành|ngành)\s+\S+\s+(liên quan|trở lên)/i.test(lower)
+  );
+}
 
 function hashCode(str: string): string {
   let hash = 0;
@@ -85,34 +120,36 @@ const extractionSchema = z.object({
     .default([]),
 });
 
-const aiScoringResultSchema = z.object({
-  A1_REQUIRED: z.number().min(0).default(0),
-  A1_REQUIRED_reason: z.string().default(""),
-  A2_NICE: z.number().min(0).default(0),
-  A2_NICE_reason: z.string().default(""),
-  A3_SKILL_DEPTH: z.number().min(0).default(0),
-  A3_SKILL_DEPTH_reason: z.string().default(""),
-  B1_MAJOR: z.number().min(0).default(0),
-  B1_MAJOR_reason: z.string().default(""),
-  B2_COURSES: z.number().min(0).default(0),
-  B2_COURSES_reason: z.string().default(""),
-  C1_PROJECT_COUNT: z.number().min(0).default(0),
-  C1_PROJECT_COUNT_reason: z.string().default(""),
-  C2_PROJECT_RELEVANCE: z.number().min(0).default(0),
-  C2_PROJECT_RELEVANCE_reason: z.string().default(""),
-  C3_PROJECT_COMPLEXITY: z.number().min(0).default(0),
-  C3_PROJECT_COMPLEXITY_reason: z.string().default(""),
-  D_CERTIFICATIONS: z.number().min(0).default(0),
-  D_CERTIFICATIONS_reason: z.string().default(""),
-  E_EXPERIENCE: z.number().min(0).default(0),
-  E_EXPERIENCE_reason: z.string().default(""),
-  reasoning: z.string().default(""),
-  strengths: z.array(z.string()).default([]),
-  weaknesses: z.array(z.string()).default([]),
-  matched_skills: z.array(z.string()).default([]),
-  missing_requirements: z.array(z.string()).default([]),
-  missing_nice_to_haves: z.array(z.string()).default([]),
-}).passthrough();
+const aiScoringResultSchema = z
+  .object({
+    A1_REQUIRED: z.number().min(0).default(0),
+    A1_REQUIRED_reason: z.string().default(""),
+    A2_NICE: z.number().min(0).default(0),
+    A2_NICE_reason: z.string().default(""),
+    A3_SKILL_DEPTH: z.number().min(0).default(0),
+    A3_SKILL_DEPTH_reason: z.string().default(""),
+    B1_MAJOR: z.number().min(0).default(0),
+    B1_MAJOR_reason: z.string().default(""),
+    B2_COURSES: z.number().min(0).default(0),
+    B2_COURSES_reason: z.string().default(""),
+    C1_PROJECT_COUNT: z.number().min(0).default(0),
+    C1_PROJECT_COUNT_reason: z.string().default(""),
+    C2_PROJECT_RELEVANCE: z.number().min(0).default(0),
+    C2_PROJECT_RELEVANCE_reason: z.string().default(""),
+    C3_PROJECT_COMPLEXITY: z.number().min(0).default(0),
+    C3_PROJECT_COMPLEXITY_reason: z.string().default(""),
+    D_CERTIFICATIONS: z.number().min(0).default(0),
+    D_CERTIFICATIONS_reason: z.string().default(""),
+    E_EXPERIENCE: z.number().min(0).default(0),
+    E_EXPERIENCE_reason: z.string().default(""),
+    reasoning: z.string().default(""),
+    strengths: z.array(z.string()).default([]),
+    weaknesses: z.array(z.string()).default([]),
+    matched_skills: z.array(z.string()).default([]),
+    missing_requirements: z.array(z.string()).default([]),
+    missing_nice_to_haves: z.array(z.string()).default([]),
+  })
+  .passthrough();
 
 const SCORING_AI_CACHE_TTL = 24 * 60 * 60 * 1000;
 
@@ -142,7 +179,7 @@ export class CvScoringService {
     candidateSkillNames: string[],
     requirements: string[],
     maxScore: number,
-  ): { score: number; matched: string[]; missing: string[] } {
+  ): { score: number; matched: string[]; missing: string[]; reason?: string } {
     const candidateSkillStr = candidateSkillNames.join(" ").toLowerCase();
     const candidateSkillsLower = candidateSkillNames.map((s) => s.toLowerCase().trim());
     let matchedCount = 0;
@@ -186,6 +223,12 @@ export class CvScoringService {
           }
         }
 
+        // Strip Vietnamese education tail: "hoặc các ngành liên quan" etc.
+        strippedReq = strippedReq
+          .replace(/\s+(hoặc|or)\s+(các\s+)?(ngành|chuyên ngành)\s+liên quan.*$/i, "")
+          .replace(/[.,;:!?]+$/, "")
+          .trim();
+
         if (strippedReq.length > 0) {
           hasMatch = candidateSkillsLower.some(
             (s) => s === strippedReq || strippedReq.includes(s) || s.includes(strippedReq),
@@ -193,9 +236,13 @@ export class CvScoringService {
         }
       }
 
-      // Strategy 4: Normalize common variations (.net → dotnet, remove dots/dashes)
+      // Strategy 4: Normalize common variations (.net → dotnet, remove dots/dashes/spaces)
       if (!hasMatch) {
-        const norm = (s: string) => s.toLowerCase().replace(/\.net\b/g, "dotnet").replace(/[\-_.]/g, "");
+        const norm = (s: string) =>
+          s
+            .toLowerCase()
+            .replace(/\.net\b/g, "dotnet")
+            .replace(/[\-_.\s]/g, "");
         const normReq = norm(reqLower);
         hasMatch = candidateSkillsLower.some((cs) => normReq === norm(cs));
       }
@@ -214,134 +261,71 @@ export class CvScoringService {
 
   /**
    * B1. Major/Field Match — 10đ (default) or 15đ (0-project fallback)
-   * Tiered scoring:
-   * - IT majors (CS, SE, IT, IS, Cybersecurity) → 100%
-   * - Related majors (Math-CS, Electronics, Telecom) → 60%
-   * - Unrelated → 0%
+   *
+   * Uses tier × major matrix with 4 school tiers (S/A/B/C) and 4 major
+   * types (IT/related/unrelated/unknown). Data-driven from major-data.ts.
+   *
+   *              IT major  Related  Unrelated  Unknown
+   * Tier S       100%      80%      40%        50%
+   * Tier A       90%       70%      30%        35%
+   * Tier B       75%       55%      15%        20%
+   * Tier C       65%       40%      0%         10%
+   * No school    80%       50%      0%         10%
    */
   private scoreMajor(educations: any[], maxScore: number): { score: number; reason: string } {
-    const itMajors = [
-      // Vietnamese
-      "công nghệ thông tin",
-      "khoa học máy tính",
-      "kỹ thuật phần mềm",
-      "công nghệ phần mềm",
-      "hệ thống thông tin",
-      "hệ thống thông tin quản lý",
-      "an toàn thông tin",
-      "mạng máy tính",
-      "máy tính",
-      "truyền thông đa phương tiện",
-      "công nghệ đa phương tiện",
-      "trí tuệ nhân tạo",
-      "khoa học dữ liệu",
-      "phân tích dữ liệu",
-      "kỹ thuật máy tính",
-      "khoa học dữ liệu và trí tuệ nhân tạo",
-      "thương mại điện tử",
-      "kỹ thuật dữ liệu",
-      // English
-      "computer science",
-      "software engineering",
-      "information technology",
-      "information systems",
-      "management information systems",
-      "cybersecurity",
-      "data science",
-      "data analytics",
-      "artificial intelligence",
-      "computer engineering",
-      "web development",
-      "mobile development",
-      "cloud computing",
-      "ui/ux",
-      "software engineer",
-      "it engineer",
-      "cs engineer",
-      "se engineer",
-      "mis",
-      "ict",
-    ];
-
-    const relatedMajors = [
-      "toán tin",
-      "toán ứng dụng",
-      "điện tử",
-      "viễn thông",
-      "kỹ thuật điện",
-      "kỹ thuật điều khiển",
-      "tự động hóa",
-      "cơ điện tử",
-      "vật lý tin học",
-      "applied mathematics",
-      "electronics",
-      "telecommunications",
-      "electrical engineering",
-      "mechatronics",
-      "automation",
-      "physics",
-      "business information systems",
-      "digital marketing",
-      "management information systems",
-    ];
-
-    // UIT-related school names that indicate an IT university background
-    const itSchools = [
-      "university of information technology",
-      "đại học công nghệ thông tin",
-      "uit",
-      "trường đại học công nghệ thông tin",
-      "vnuhcm",
-    ];
-
     for (const edu of educations) {
       const major = (edu.major || "").toLowerCase().trim();
       const degree = (edu.degree || "").toLowerCase().trim();
       const school = (edu.school || "").toLowerCase().trim();
       const combined = `${degree} ${major}`.trim();
-      const isItSchool = itSchools.some((kw) => school.includes(kw));
 
-      if (!combined && !isItSchool) continue;
-      if (!combined) {
-        return {
-          score: Math.round(maxScore * 0.6),
-          reason: `UIT school, major unspecified: "${edu.school || "School"}"`,
-        };
+      const found = findSchool(school);
+      const tier: SchoolTier | null = found?.entry?.tier ?? null;
+      const abbreviation = found ? getSchoolAbbreviation(school) : null;
+
+      const majorType = classifyMajor(combined);
+      const multiplier = getScoreMultiplier(tier, majorType);
+
+      if (multiplier <= 0 && !combined) continue;
+
+      const score = Math.round(maxScore * multiplier);
+      const tierLabel = abbreviation ? `${abbreviation} (Tier ${tier ?? "?"})` : `Tier ${tier ?? "None"}`;
+
+      if (majorType === "unknown") {
+        if (tier) {
+          return { score, reason: `${tierLabel}, major unspecified — "${edu.school}"` };
+        }
+        continue;
       }
 
-      if (itMajors.some((kw) => combined.includes(kw))) {
-        return {
-          score: maxScore,
-          reason: `IT major: "${edu.degree || "Degree"} in ${edu.major || "Major"}"`,
-        };
-      }
+      const typeLabel =
+        majorType === "it"
+          ? "IT major"
+          : majorType === "related"
+            ? "Related field"
+            : majorType === "unrelated"
+              ? "Unrelated major"
+              : "Unknown major";
 
-      if (relatedMajors.some((kw) => combined.includes(kw))) {
-        return {
-          score: Math.round(maxScore * 0.6),
-          reason: `Related field: "${edu.degree || "Degree"} in ${edu.major || "Major"}"`,
-        };
-      }
-
-      if (isItSchool) {
-        return {
-          score: Math.round(maxScore * 0.6),
-          reason: `IT school (${edu.school}), major may not be standard IT`,
-        };
-      }
+      const majorLabel = `"${edu.degree || "Degree"} in ${edu.major || "Major"}"`;
+      const schoolLabel = abbreviation ? ` at ${abbreviation}` : tier ? ` at ${found!.entry.name}` : "";
+      return { score, reason: `${typeLabel}${schoolLabel}: ${majorLabel}` };
     }
 
     return { score: 0, reason: "No relevant IT education found" };
   }
 
   /**
-   * C1. Project Count — 5đ
-   * Simple count: 3+ → 5đ, 2 → 3đ, 1 → 1đ, 0 → 0đ
+   * C1. Project Count — scaled by maxScore
+   * 3+ projects → maxScore
+   * 2 projects  → 60% of maxScore (encourages quality)
+   * 1 project   → 30% of maxScore
+   * 0 projects  → 0
    */
   private scoreProjectCount(projectCount: number, maxScore: number): number {
     if (projectCount >= 3) return maxScore;
-    if (projectCount === 2) return 3;
-    if (projectCount === 1) return 1;
+    if (projectCount === 2) return Math.round(maxScore * 0.6);
+    if (projectCount === 1) return Math.round(maxScore * 0.3);
     return 0;
   }
 
@@ -460,10 +444,12 @@ export class CvScoringService {
     const replacements: Record<string, string> = {
       jobTitle: job.title || "Untitled",
       requirements: [
-        ...((job.requirement || []) as string[]),
-        ...((job.requirements || []) as string[]),
-        ...((job.skills || []).map((s: any) => s.name || s)),
-      ].filter(Boolean).join("\n"),
+        ...((job.requirement || []) as string[]).filter((r) => !isEducationRequirement(r)),
+        ...((job.requirements || []) as string[]).filter((r) => !isEducationRequirement(r)),
+        ...(job.skills || []).map((s: any) => s.name || s),
+      ]
+        .filter(Boolean)
+        .join("\n"),
       niceToHaves: (job.nice_to_haves || []).join("\n"),
       weightsText,
       A1_REQUIRED: String(weights.A1_REQUIRED),
@@ -512,38 +498,41 @@ export class CvScoringService {
           ],
           response_format: { type: "json_object" },
           temperature: 0,
-          max_tokens: 2000,
+          max_tokens: 500,
         });
 
         const raw = response.choices[0]?.message?.content;
-        if (!raw) { lastError = new Error("Empty AI response"); continue; }
+        if (!raw) {
+          lastError = new Error("Empty AI response");
+          continue;
+        }
 
         const parsed = aiScoringResultSchema.parse(recoverTruncatedJson(raw));
 
-      const clamped = { ...parsed };
-      for (const key of Object.keys(weights) as (keyof ScoringWeights)[]) {
-        (clamped as any)[key] = clamp((clamped as any)[key] || 0, (weights as any)[key]);
+        const clamped = { ...parsed };
+        for (const key of Object.keys(weights) as (keyof ScoringWeights)[]) {
+          (clamped as any)[key] = clamp((clamped as any)[key] || 0, (weights as any)[key]);
+        }
+
+        const analysis = parsed.reasoning || "AI scored based on configured weights.";
+
+        const details: Record<string, string> = {};
+        for (const key of Object.keys(weights) as (keyof ScoringWeights)[]) {
+          const reasonKey = `${key}_reason` as string;
+          details[key] = (parsed as any)[reasonKey] || "";
+        }
+
+        return {
+          scores: clamped,
+          analysis,
+          details,
+          matched_skills: parsed.matched_skills || [],
+          missing_requirements: parsed.missing_requirements || [],
+          missing_nice_to_haves: parsed.missing_nice_to_haves || [],
+        };
+      } catch (err) {
+        lastError = err;
       }
-
-      const analysis = parsed.reasoning || "AI scored based on configured weights.";
-
-      const details: Record<string, string> = {};
-      for (const key of Object.keys(weights) as (keyof ScoringWeights)[]) {
-        const reasonKey = `${key}_reason` as string;
-        details[key] = (parsed as any)[reasonKey] || "";
-      }
-
-      return {
-        scores: clamped,
-        analysis,
-        details,
-        matched_skills: parsed.matched_skills || [],
-        missing_requirements: parsed.missing_requirements || [],
-        missing_nice_to_haves: parsed.missing_nice_to_haves || [],
-      };
-    } catch (err) {
-      lastError = err;
-    }
     }
     logger.warn("[CV Scoring] AI scoring failed after retries:", lastError);
     return null;
@@ -565,8 +554,8 @@ export class CvScoringService {
       (skill) => new RegExp(`\\b${escapeRegex(skill.toLowerCase())}\\b`, "i"),
     );
 
-    const projectTexts = projects.map(
-      (p) => `${p.description || ""} ${(p.technologies || []).join(" ")}`.toLowerCase(),
+    const projectTexts = projects.map((p) =>
+      `${p.description || ""} ${(p.technologies || []).join(" ")}`.toLowerCase(),
     );
     const experienceTexts = experiences.map((e) => (e.description || "").toLowerCase());
 
@@ -647,13 +636,14 @@ export class CvScoringService {
       .join(" ")
       .toLowerCase();
 
-    const hasHigh = highComplexityKeywords.some((kw) => projectText.includes(kw));
+    const highCount = highComplexityKeywords.filter((kw) => projectText.includes(kw)).length;
     const hasMid = midComplexityKeywords.some((kw) => projectText.includes(kw));
     const hasBasic = basicKeywords.some((kw) => projectText.includes(kw));
 
-    if (hasHigh) return maxScore;
-    if (hasMid) return Math.round(maxScore * 0.8);
-    if (hasBasic) return Math.round(maxScore * 0.4);
+    if (highCount >= 2) return maxScore; // 2+ high keywords → 100%
+    if (highCount === 1) return Math.round(maxScore * 0.9); // 1 high keyword → 90%
+    if (hasMid) return Math.round(maxScore * 0.8); // mid → 80%
+    if (hasBasic) return Math.round(maxScore * 0.4); // basic → 40%
 
     if (projects.some((p) => (p.description || "").trim().length > 50)) return Math.round(maxScore * 0.6);
 
@@ -840,7 +830,7 @@ export class CvScoringService {
       bestOverlap = Math.max(bestOverlap, overlap);
     }
 
-    const ratio = Math.min(bestOverlap / 3, 1);
+    const ratio = Math.min(bestOverlap / 5, 1);
     return {
       score: Math.round(ratio * maxScore),
       details: `Deterministic overlap: ${bestOverlap} keywords matched (${Math.round(ratio * 100)}%)`,
@@ -1144,6 +1134,9 @@ export class CvScoringService {
     if (!customWeights) {
       customWeights = convertCompanyScoringConfig(company?.scoring_config);
     }
+    if (!customWeights) {
+      customWeights = { ...baseWeights };
+    }
 
     if (customWeights) {
       try {
@@ -1161,8 +1154,17 @@ export class CvScoringService {
         if (aiResult) {
           const s = aiResult.scores as Record<string, any>;
 
-          let finalScore = s.A1_REQUIRED + s.A2_NICE + s.A3_SKILL_DEPTH + s.B1_MAJOR + s.B2_COURSES +
-            s.C1_PROJECT_COUNT + s.C2_PROJECT_RELEVANCE + s.C3_PROJECT_COMPLEXITY + s.D_CERTIFICATIONS + s.E_EXPERIENCE;
+          let finalScore =
+            s.A1_REQUIRED +
+            s.A2_NICE +
+            s.A3_SKILL_DEPTH +
+            s.B1_MAJOR +
+            s.B2_COURSES +
+            s.C1_PROJECT_COUNT +
+            s.C2_PROJECT_RELEVANCE +
+            s.C3_PROJECT_COMPLEXITY +
+            s.D_CERTIFICATIONS +
+            s.E_EXPERIENCE;
           const customScores: Record<string, number> = {};
           for (const key of Object.keys(s)) {
             if (key.startsWith("CUSTOM_") && typeof s[key] === "number") {
@@ -1223,19 +1225,33 @@ export class CvScoringService {
           const aiMissingReq = aiResult.missing_requirements || [];
           const aiMissingNice = aiResult.missing_nice_to_haves || [];
 
-          const finalMatched = aiMatched.length > 0 ? aiMatched : (() => {
-            const jdTermSet = new Set(
-              [...expandedJobSkills, ...jobSkillNames].map((s) => s.toLowerCase().trim()),
-            );
-            return candidateSkillNames.filter((cs) => {
-              const csl = cs.toLowerCase().trim();
-              return [...jdTermSet].some((jt) => csl === jt || csl.includes(jt) || jt.includes(csl));
-            });
-          })();
-          const finalMissingReq = aiMissingReq.length > 0 ? aiMissingReq
-            : this.matchSkills(candidateSkillNames, [...(job.requirement || []), ...expandedJobSkills].filter(Boolean), 100).missing;
-          const finalMissingNice = aiMissingNice.length > 0 ? aiMissingNice
-            : this.matchSkills(candidateSkillNames, job.nice_to_haves || [], 100).missing;
+          const finalMatched =
+            aiMatched.length > 0
+              ? aiMatched
+              : (() => {
+                  const jdTermSet = new Set(
+                    [...expandedJobSkills, ...jobSkillNames].map((s) => s.toLowerCase().trim()),
+                  );
+                  return candidateSkillNames.filter((cs) => {
+                    const csl = cs.toLowerCase().trim();
+                    return [...jdTermSet].some((jt) => csl === jt || csl.includes(jt) || jt.includes(csl));
+                  });
+                })();
+          const finalMissingReq =
+            aiMissingReq.length > 0
+              ? aiMissingReq
+              : this.matchSkills(
+                  candidateSkillNames,
+                  [
+                    ...(job.requirement || []).filter((r: string) => !isEducationRequirement(r)),
+                    ...jobSkillNames,
+                  ].filter(Boolean),
+                  100,
+                ).missing;
+          const finalMissingNice =
+            aiMissingNice.length > 0
+              ? aiMissingNice
+              : this.matchSkills(candidateSkillNames, job.nice_to_haves || [], 100).missing;
 
           try {
             await supabase
@@ -1287,13 +1303,18 @@ export class CvScoringService {
     // --- 8. Score Each Component (deterministic) ---
 
     // A1. Required Skills Match
-    const jobRequirements = [...(job.requirement || []), ...expandedJobSkills].filter(Boolean);
+    const jobRequirements = [
+      ...(job.requirement || []).filter((r: string) => !isEducationRequirement(r)),
+      ...jobSkillNames,
+    ].filter(Boolean);
     const a1Result = this.matchSkills(candidateSkillNames, jobRequirements, weights.A1_REQUIRED);
+    a1Result.reason = `Matched ${a1Result.matched.length}/${jobRequirements.length} required skills`;
     const a1Score = clamp(a1Result.score, weights.A1_REQUIRED);
 
     // A2. Nice-to-have Match
     const jobNice = job.nice_to_haves || [];
     const a2Result = this.matchSkills(candidateSkillNames, jobNice, weights.A2_NICE);
+    a2Result.reason = `Matched ${a2Result.matched.length}/${jobNice.length} nice-to-haves`;
     const a2Score = clamp(a2Result.score, weights.A2_NICE);
 
     // A3. Skill Depth Bonus
@@ -1385,9 +1406,7 @@ export class CvScoringService {
     );
 
     // Compute candidate skills that actually appear in job terms
-    const jdTermSet = new Set(
-      [...expandedJobSkills, ...jobSkillNames].map((s) => s.toLowerCase().trim()),
-    );
+    const jdTermSet = new Set([...expandedJobSkills, ...jobSkillNames].map((s) => s.toLowerCase().trim()));
     const matchedSkills = candidateSkillNames.filter((cs) => {
       const csl = cs.toLowerCase().trim();
       return [...jdTermSet].some((jt) => csl === jt || csl.includes(jt) || jt.includes(csl));
@@ -1449,8 +1468,8 @@ export class CvScoringService {
     },
     weights: ScoringWeights,
     hasProjects: boolean,
-    a1Result: { matched: string[]; missing: string[] },
-    a2Result: { matched: string[]; missing: string[] },
+    a1Result: { matched: string[]; missing: string[]; reason?: string },
+    a2Result: { matched: string[]; missing: string[]; reason?: string },
     b1Result: { reason: string },
     c2Result: { details: string },
     eResult: { details: string },
@@ -1460,8 +1479,9 @@ export class CvScoringService {
     const note = !hasProjects ? "Weight increased due to 0 projects" : undefined;
     const projectNote = !hasProjects ? "No projects — weight redistributed to A1/B1/E" : undefined;
 
-    const isCustomized = (Object.keys(weights) as (keyof ScoringWeights)[])
-      .some((k) => k.startsWith("CUSTOM_") || weights[k] !== DEFAULT_WEIGHTS[k]);
+    const isCustomized = (Object.keys(weights) as (keyof ScoringWeights)[]).some(
+      (k) => k.startsWith("CUSTOM_") || weights[k] !== DEFAULT_WEIGHTS[k],
+    );
     const adjustments: string[] = [];
     if (isCustomized) {
       for (const [key, val] of Object.entries(weights)) {
@@ -1496,6 +1516,7 @@ export class CvScoringService {
           max: weights.A1_REQUIRED,
           matched: a1Result.matched,
           missing: a1Result.missing,
+          reason: a1Result.reason || "",
           note,
         },
         nice_to_have: {
@@ -1503,6 +1524,7 @@ export class CvScoringService {
           max: weights.A2_NICE,
           matched: a2Result.matched,
           missing: a2Result.missing,
+          reason: a2Result.reason || "",
         },
         skill_depth: {
           score: scores.a3,

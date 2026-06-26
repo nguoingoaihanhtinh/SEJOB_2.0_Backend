@@ -185,6 +185,7 @@ This rubric combines industry best practices:
 - For EACH component, provide a brief reason with a specific quote or evidence from the CV.
 - 0 = no evidence found. Be critical. Do NOT inflate.
 - Vague descriptions without evidence = lower score.
+- Education/graduation requirements (e.g. "Graduated in IT", "Final year CS student") can be satisfied by the candidate's Education entries — check their major and degree level there.
 - Return ONLY valid JSON.
 
 Job Title: {{jobTitle}}
@@ -222,9 +223,14 @@ A3_SKILL_DEPTH (0-{{A3_SKILL_DEPTH}}) — Skill Depth:
   - 0: No skills found
 
 B1_MAJOR (0-{{B1_MAJOR}}) — Major / Education Fit:
-  - MAX: Major is IT / Computer Science / Software Engineering / Information Systems
-  - HALF: Related field (Math, Electronics, Telecommunications, Data Science)
-  - 0: Unrelated or no education info
+  - MAX: Major is IT (CS, SE, IT, IS, Cybersecurity, Data Science, AI...) at any recognized school
+  - MAX: Any major from a recognized IT-specialized Vietnamese university
+  - HIGH: Related field (Math, Electronics, Telecommunications) at top IT school
+  - HALF: Related field elsewhere, or non-IT major at IT school
+  - LOW: Unrelated major at top IT school
+  - 0: No relevant education found
+  Vietnamese IT-specialized universities (Tier S): UIT, UET, PTIT, FPT, HUST,
+  HCMUT, DUT, HCMUS, HUS, ACT, MTA, USTH
 
 C1_PROJECT_COUNT (0-{{C1_PROJECT_COUNT}}) — Project Count:
   Count all: coursework projects, personal projects, team projects, hackathons.
@@ -258,8 +264,10 @@ E_EXPERIENCE (0-{{E_EXPERIENCE}}) — Internship & Work Experience:
   - LOW: Non-IT work experience
   - 0: No experience
 
-Also list which specific skills from the job posting are found in the CV (Requirements and Nice-to-haves).
-Be precise — only list a skill as matched if it is actually present in the CV content.
+List which specific requirements from the job posting are found in the CV (skills AND education).
+Check skills against the candidate's skill list, project tech stack, and work experience.
+Check education/graduation requirements against the candidate's Education entries (major and degree).
+Be precise — only mark as matched if actually present in the CV content.
 
 Return JSON:
 {
@@ -274,7 +282,7 @@ Return JSON:
   "E_EXPERIENCE": 0-{{E_EXPERIENCE}}, "E_EXPERIENCE_reason": "type of experience and technical relevance",
 {{customSectionsOutput}}
   "matched_skills": ["skill1", "skill2"],
-  "missing_requirements": ["requirement text not found in CV"],
+  "missing_requirements": ["skill or education requirement not found in CV"],
   "missing_nice_to_haves": ["nice-to-have text not found in CV"],
   "strengths": ["top 2-3 candidate strengths from CV"],
   "weaknesses": ["top 2-3 gaps or concerns"],
