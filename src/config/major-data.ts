@@ -48,7 +48,7 @@ export const IT_SCHOOLS: SchoolEntry[] = [
   { name: "Đại học Nguyễn Tất Thành", aliases: ["nttu", "nguyễn tất thành", "nguyen tat thanh university", "đh nguyễn tất thành"], tier: "B" },
   { name: "Đại học Công nghệ TP.HCM", aliases: ["hutech", "công nghệ hcm", "đh công nghệ hcm"], tier: "B" },
   { name: "Đại học Gia Định", aliases: ["gdu", "gia định", "gia dinh university", "đh gia định"], tier: "B" },
-  { name: "Đại học Sài Gòn", aliases: ["sgu", "sài gòn", "sai gon university", "đh sài gòn"], tier: "B" },
+  { name: "Đại học Sài Gòn", aliases: ["sgu", "sài gòn", "sai gon university", "saigon university", "đh sài gòn"], tier: "B" },
   { name: "Đại học Kinh tế – Kỹ thuật Công nghiệp", aliases: ["uneti", "kinh tế kỹ thuật công nghiệp", "university of economics technology for industries", "đh kinh tế kỹ thuật công nghiệp"], tier: "B" },
   { name: "Đại học Thăng Long", aliases: ["tlu", "thăng long", "thang long university", "đh thăng long"], tier: "B" },
   { name: "Đại học Phenikaa", aliases: ["phenikaa", "đh phenikaa", "đại học phenikaa"], tier: "B" },
@@ -158,10 +158,10 @@ export function classifyMajor(combined: string): MajorType {
  */
 const MATRIX: Record<SchoolTier | "NONE", Record<MajorType, number>> = {
   S: { it: 1.0, related: 0.8, unrelated: 0.4, unknown: 0.5 },
-  A: { it: 0.9, related: 0.7, unrelated: 0.3, unknown: 0.35 },
-  B: { it: 0.75, related: 0.55, unrelated: 0.15, unknown: 0.2 },
-  C: { it: 0.65, related: 0.4, unrelated: 0.0, unknown: 0.1 },
-  NONE: { it: 0.8, related: 0.5, unrelated: 0.0, unknown: 0.1 },
+  A: { it: 0.8, related: 0.7, unrelated: 0.3, unknown: 0.35 },
+  B: { it: 0.7, related: 0.55, unrelated: 0.15, unknown: 0.2 },
+  C: { it: 0.6, related: 0.4, unrelated: 0.0, unknown: 0.1 },
+  NONE: { it: 0.6, related: 0.5, unrelated: 0.0, unknown: 0.1 },
 };
 
 export function getScoreMultiplier(tier: SchoolTier | null, majorType: MajorType): number {

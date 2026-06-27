@@ -1138,6 +1138,23 @@ export class CvScoringService {
       customWeights = { ...baseWeights };
     }
 
+    // Compute confidence based on data completeness
+    let confidence = 100;
+    for (const edu of educations) {
+      const school = (edu.school || "").trim();
+      const degree = (edu.degree || "").trim();
+      const major = (edu.major || "").trim();
+      const combined = `${degree} ${major}`.trim();
+      if (school && !findSchool(school)) confidence -= 20;
+      if (combined) {
+        const majorType = classifyMajor(combined);
+        if (majorType === "unknown") confidence -= 15;
+        else if (majorType === "unrelated") confidence -= 5;
+      }
+    }
+    if (aiExtractedSkillIds.length === 0) confidence -= 10;
+    confidence = clamp(Math.round(confidence), 100);
+
     if (customWeights) {
       try {
         const aiResult = await this.scoreWithAI(
@@ -1153,12 +1170,13 @@ export class CvScoringService {
         );
         if (aiResult) {
           const s = aiResult.scores as Record<string, any>;
+          const b1Result = this.scoreMajor(educations, customWeights.B1_MAJOR);
 
           let finalScore =
             s.A1_REQUIRED +
             s.A2_NICE +
             s.A3_SKILL_DEPTH +
-            s.B1_MAJOR +
+            b1Result.score +
             s.B2_COURSES +
             s.C1_PROJECT_COUNT +
             s.C2_PROJECT_RELEVANCE +
@@ -1180,7 +1198,7 @@ export class CvScoringService {
               a1: s.A1_REQUIRED,
               a2: s.A2_NICE,
               a3: s.A3_SKILL_DEPTH,
-              b1: s.B1_MAJOR,
+              b1: b1Result.score,
               b2: s.B2_COURSES,
               c1: s.C1_PROJECT_COUNT,
               c2: s.C2_PROJECT_RELEVANCE,
@@ -1192,7 +1210,7 @@ export class CvScoringService {
             hasProjects,
             { matched: [], missing: [] },
             { matched: [], missing: [] },
-            { reason: "" },
+            b1Result,
             { details: "" },
             { details: "" },
             customScores,
@@ -1207,7 +1225,7 @@ export class CvScoringService {
             if (bd.technical_skills.skill_depth)
               bd.technical_skills.skill_depth.reason = aiResult.details.A3_SKILL_DEPTH || "";
           }
-          if (bd.academic?.major) bd.academic.major.reason = aiResult.details.B1_MAJOR || "";
+          if (bd.academic?.major) bd.academic.major.reason = b1Result.reason;
           if (bd.projects) {
             if (bd.projects.count) bd.projects.count.reason = aiResult.details.C1_PROJECT_COUNT || "";
             if (bd.projects.relevance) bd.projects.relevance.reason = aiResult.details.C2_PROJECT_RELEVANCE || "";
@@ -1272,6 +1290,7 @@ export class CvScoringService {
             matched_skills: finalMatched,
             missing_requirements: finalMissingReq,
             missing_nice_to_haves: finalMissingNice,
+            confidence,
             analysis: aiResult.analysis,
             score_breakdown: breakdown,
             debug: {
@@ -1434,6 +1453,7 @@ export class CvScoringService {
       matched_skills: matchedSkills,
       missing_requirements: a1Result.missing,
       missing_nice_to_haves: a2Result.missing,
+      confidence,
       analysis,
       score_breakdown: breakdown,
       debug: {
