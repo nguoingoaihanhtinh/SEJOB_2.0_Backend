@@ -426,6 +426,8 @@ export class CvScoringService {
     certifications: any[],
     weights: ScoringWeights,
     prompts?: Record<string, string>,
+    candidateAbout?: string,
+    cvExtract?: string,
   ): Promise<{
     scores: z.infer<typeof aiScoringResultSchema>;
     analysis: string;
@@ -467,11 +469,13 @@ export class CvScoringService {
           .map((e) => `${e.major} ${e.degree} ${e.school}`)
           .filter(Boolean)
           .join("; ") || "None",
-      skills: candidateSkillNames.join(", ") || "None",
+      skills: [...new Set([...candidateSkillNames, ...certifications.map((c) => c.name)])].filter(Boolean).join(", ") || "None",
       projects:
         projects.map((p) => `${p.name}: ${p.description} [${(p.technologies || []).join(", ")}]`).join("\n") || "None",
       experiences: experiences.map((e) => `${e.position} at ${e.company}: ${e.description || ""}`).join("\n") || "None",
-      certifications: certifications.map((c) => c.name).join(", ") || "None",
+      certifications: certifications.map((c) => [c.name, c.organization].filter(Boolean).join(" — ")).join(", ") || "None",
+      about: candidateAbout || "None",
+      cvExtract: cvExtract || "None",
       customSectionsOutput: Object.entries(weights)
         .filter(([k]) => k.startsWith("CUSTOM_"))
         .map(([k, v]) => {
@@ -658,11 +662,10 @@ export class CvScoringService {
     certifications: any[],
     jobRequirements: string[],
     jobSkillNames: string[],
-    maxScore: number,
   ): number {
     if (!certifications || certifications.length === 0) return 0;
 
-    let certScore = 0;
+    let totalPct = 0;
     const combinedRequirements = [...jobRequirements, ...jobSkillNames].map((r) => r.toLowerCase());
 
     for (const cert of certifications) {
@@ -670,56 +673,81 @@ export class CvScoringService {
       const certOrg = (cert.organization || "").toLowerCase();
       const certText = `${certName} ${certOrg} ${cert.description || ""}`.toLowerCase();
 
-      // Priority 1: Direct match in certification name
+      // Direct match in certification name
       const directMatch = combinedRequirements.some((req) => certName.includes(req));
       if (directMatch) {
-        certScore = maxScore;
-        break;
+        totalPct = Math.min(totalPct + 0.5, 1);
+        continue;
       }
 
-      // Priority 2: Language proficiency certs (IELTS, TOEIC, TOEFL, etc.)
+      // Language proficiency certs — parse level from name/text
       const langKeywords = [
-        "ielts",
-        "toeic",
-        "toefl",
-        "tiếng anh",
-        "tieng anh",
-        "ngoại ngữ",
-        "foreign language",
-        "language",
-        "japanese",
-        "tiếng nhật",
-        "chinese",
-        "tiếng trung",
-        "korean",
-        "tiếng hàn",
+        "ielts", "toeic", "toefl", "tiếng anh", "tieng anh",
+        "ngoại ngữ", "foreign language", "language",
+        "japanese", "tiếng nhật", "jlpt",
+        "chinese", "tiếng trung", "hsk",
+        "korean", "tiếng hàn", "topik",
       ];
       const isLangCert = langKeywords.some((kw) => certName.includes(kw) || certText.includes(kw));
 
       if (isLangCert) {
-        certScore = Math.max(certScore, Math.round(maxScore * 0.6));
+        const numberMatch = certText.match(/(\d+[\.\d]*)/);
+        const num = numberMatch && numberMatch[1] ? parseFloat(numberMatch[1]) : 0;
+        let langPct = 0.6;
+
+        if (certName.includes("toeic") || certText.includes("toeic")) {
+          if (num >= 950) langPct = 1;
+          else if (num >= 850) langPct = 0.9;
+          else if (num >= 750) langPct = 0.75;
+          else if (num >= 650) langPct = 0.6;
+          else langPct = 0.4;
+        } else if (certName.includes("ielts") || certText.includes("ielts")) {
+          if (num >= 7.5) langPct = 1;
+          else if (num >= 6.5) langPct = 0.85;
+          else if (num >= 6) langPct = 0.7;
+          else if (num >= 5) langPct = 0.5;
+          else langPct = 0.3;
+        } else if (certName.includes("toefl") || certText.includes("toefl")) {
+          if (num >= 100) langPct = 1;
+          else if (num >= 80) langPct = 0.85;
+          else if (num >= 60) langPct = 0.7;
+          else langPct = 0.5;
+        } else if (/(^|\s)n[1-5]($|\s)/.test(certText) || certName.includes("jlpt") || certText.includes("jlpt")) {
+          // Japanese JLPT N5-N1
+          const nMatch = certText.match(/n([1-5])/);
+          const level = nMatch && nMatch[1] ? parseInt(nMatch[1]) : 0;
+          const jlptMap: Record<number, number> = { 1: 1, 2: 0.85, 3: 0.7, 4: 0.5, 5: 0.3 };
+          langPct = jlptMap[level] ?? 0.6;
+        } else if (certName.includes("hsk") || certText.includes("hsk")) {
+          // Chinese HSK 1-6
+          const hskMap: Record<number, number> = { 6: 1, 5: 0.85, 4: 0.7, 3: 0.5, 2: 0.35, 1: 0.2 };
+          langPct = hskMap[num] ?? 0.6;
+        } else if (certName.includes("topik") || certText.includes("topik")) {
+          // Korean TOPIK 1-6
+          const topikMap: Record<number, number> = { 6: 1, 5: 0.85, 4: 0.7, 3: 0.5, 2: 0.35, 1: 0.2 };
+          langPct = topikMap[num] ?? 0.6;
+        }
+
+        totalPct = Math.min(totalPct + langPct, 1);
+        continue;
       }
 
-      // Priority 3: Famous IT Cert Organizations match
+      // Famous IT Cert Organizations
       const famousOrgs = ["aws", "microsoft", "google", "oracle", "cisco", "red hat", "comptia", "isc2"];
       const isFamousOrg = famousOrgs.some((org) => certOrg.includes(org) || certName.includes(org));
-
       if (isFamousOrg) {
-        certScore = Math.max(certScore, Math.round(maxScore * 0.8));
+        totalPct = Math.min(totalPct + 0.4, 1);
+        continue;
       }
 
-      // Priority 4: Indirect match in description
-      const indirectMatch = combinedRequirements.some((req) => {
-        if (req.length <= 4) return false;
-        return certText.includes(req);
-      });
-
+      // Indirect match in description
+      const indirectMatch = combinedRequirements.some((req) => req.length > 4 && certText.includes(req));
       if (indirectMatch) {
-        certScore = Math.max(certScore, Math.round(maxScore * 0.5));
+        totalPct = Math.min(totalPct + 0.3, 1);
       }
     }
 
-    return certScore;
+    return totalPct;
   }
 
   /**
@@ -1167,6 +1195,8 @@ export class CvScoringService {
           certifications,
           customWeights,
           customPrompts,
+          (student as any)?.about || undefined,
+          pdfText.length > 50 ? pdfText.substring(0, 3000) : undefined,
         );
         if (aiResult) {
           const s = aiResult.scores as Record<string, any>;
@@ -1363,9 +1393,9 @@ export class CvScoringService {
       ? clamp(this.scoreProjectComplexity(projects, weights.C3_PROJECT_COMPLEXITY), weights.C3_PROJECT_COMPLEXITY)
       : 0;
 
-    // D. Certifications — Keyword-based
+    // D. Certifications — Keyword-based, percentage × maxWeight
     const dScore = clamp(
-      this.scoreCertifications(certifications, jobRequirements, jobSkillNames, weights.D_CERTIFICATIONS),
+      Math.round(this.scoreCertifications(certifications, jobRequirements, jobSkillNames) * weights.D_CERTIFICATIONS),
       weights.D_CERTIFICATIONS,
     );
 

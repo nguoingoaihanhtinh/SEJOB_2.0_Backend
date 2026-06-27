@@ -198,11 +198,13 @@ Weights:
 === CANDIDATE PROFILE ===
 Education: {{educations}}
 Skills Listed: {{skills}}
+About: {{about}}
 Projects:
 {{projects}}
 Work Experience:
 {{experiences}}
 Certifications: {{certifications}}
+CV Text Extract: {{cvExtract}}
 
 === SCORING RUBRIC ===
 
@@ -253,9 +255,15 @@ C3_PROJECT_COMPLEXITY (0-{{C3_PROJECT_COMPLEXITY}}) — Project Complexity:
   - 0: No projects
 
 D_CERTIFICATIONS (0-{{D_CERTIFICATIONS}}) — Certifications:
-  - MAX: 2+ relevant certifications (including online: AWS Practitioner, Meta Frontend, Google IT Support, Coursera specializations, etc.)
-  - HALF: 1 relevant certification
-  - LOW: Irrelevant certifications
+  Consider the level/proficiency of each certification:
+  - English: TOEIC 950+ / IELTS 7.5+ → full, TOEIC 850+ / IELTS 6.5+ → high, TOEIC 750+ / IELTS 6.0+ → medium
+  - Japanese JLPT: N1 → full, N2 → high, N3 → medium, N4 → low, N5 → minimal
+  - Chinese HSK: HSK 6 → full, HSK 5 → high, HSK 4 → medium, HSK 3 → low, HSK 1-2 → minimal
+  - Korean TOPIK: TOPIK 6 → full, TOPIK 5 → high, TOPIK 4 → medium, TOPIK 3 → low, TOPIK 1-2 → minimal
+  - IT: Professional-level (AWS Certified, Google Professional, etc.) → high, entry-level (AWS Practitioner, etc.) → medium
+  - MAX: 2+ relevant certifications at high/medium level; or 1 high-level + 1 medium
+  - HALF: 1 relevant certification, or multiple low-relevance certs
+  - LOW: Irrelevant or expired certifications
   - 0: None
 
 E_EXPERIENCE (0-{{E_EXPERIENCE}}) — Internship & Work Experience:
