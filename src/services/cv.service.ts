@@ -154,7 +154,7 @@ async function callAI(prompt: string, model: string): Promise<string> {
     ],
     response_format: { type: "json_object" },
     temperature: 0.1,
-    max_tokens: 4096,
+    max_tokens: 2000,
   });
 
   const rawContent = response.choices[0]?.message?.content || "{}";
