@@ -680,12 +680,13 @@ export class CvScoringService {
         continue;
       }
 
-      // Language proficiency certs — parse level from name
+      // Language proficiency certs — parse level from name/text
       const langKeywords = [
         "ielts", "toeic", "toefl", "tiếng anh", "tieng anh",
         "ngoại ngữ", "foreign language", "language",
-        "japanese", "tiếng nhật", "chinese", "tiếng trung",
-        "korean", "tiếng hàn",
+        "japanese", "tiếng nhật", "jlpt",
+        "chinese", "tiếng trung", "hsk",
+        "korean", "tiếng hàn", "topik",
       ];
       const isLangCert = langKeywords.some((kw) => certName.includes(kw) || certText.includes(kw));
 
@@ -711,6 +712,20 @@ export class CvScoringService {
           else if (num >= 80) langPct = 0.85;
           else if (num >= 60) langPct = 0.7;
           else langPct = 0.5;
+        } else if (/(^|\s)n[1-5]($|\s)/.test(certText) || certName.includes("jlpt") || certText.includes("jlpt")) {
+          // Japanese JLPT N5-N1
+          const nMatch = certText.match(/n([1-5])/);
+          const level = nMatch && nMatch[1] ? parseInt(nMatch[1]) : 0;
+          const jlptMap: Record<number, number> = { 1: 1, 2: 0.85, 3: 0.7, 4: 0.5, 5: 0.3 };
+          langPct = jlptMap[level] ?? 0.6;
+        } else if (certName.includes("hsk") || certText.includes("hsk")) {
+          // Chinese HSK 1-6
+          const hskMap: Record<number, number> = { 6: 1, 5: 0.85, 4: 0.7, 3: 0.5, 2: 0.35, 1: 0.2 };
+          langPct = hskMap[num] ?? 0.6;
+        } else if (certName.includes("topik") || certText.includes("topik")) {
+          // Korean TOPIK 1-6
+          const topikMap: Record<number, number> = { 6: 1, 5: 0.85, 4: 0.7, 3: 0.5, 2: 0.35, 1: 0.2 };
+          langPct = topikMap[num] ?? 0.6;
         }
 
         totalPct = Math.min(totalPct + langPct, 1);
