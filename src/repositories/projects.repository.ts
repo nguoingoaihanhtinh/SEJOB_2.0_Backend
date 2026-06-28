@@ -70,6 +70,12 @@ const projectsRepository = {
     if (error) throw error;
     return;
   },
+
+  async bulkDelete(studentId: number) {
+    const { data, error } = await supabase.from("projects").delete().eq("student_id", studentId).select("id");
+    if (error) throw error;
+    return data;
+  }
 };
 
 export default projectsRepository;

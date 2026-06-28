@@ -27,6 +27,8 @@ export async function createCertification(req: Request, res: Response) {
     throw new UnauthorizedError({ message: MessageUtil.get("ONLY_STUDENTS_CAN_CREATE_CERTIFICATIONS") });
   }
 
+  if (!req.body.organization) req.body.organization = "Không có";
+
   const payload = validate.schema_validate(createCertificationSchema, req.body);
 
   const student = await studentRepository.findByUserId(req.user.userId);

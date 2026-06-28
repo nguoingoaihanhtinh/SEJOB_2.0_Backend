@@ -70,7 +70,12 @@ export async function extractCVData(req: Request, res: Response) {
 
   const { fileUrl } = req.body;
   if (!fileUrl) throw new BadRequestError({ message: "File URL is required" });
+  
+  const student = await studentRepository.findByUserId(req.user.userId);
+  if (!student) {
+    throw new UnauthorizedError({ message: MessageUtil.get("STUDENT_PROFILE_NOT_FOUND") });
+  }
 
-  const data = await CVService.extractData(fileUrl);
+  const data = await CVService.extractData(fileUrl, student.id);
   res.status(200).json({ success: true, data });
 }

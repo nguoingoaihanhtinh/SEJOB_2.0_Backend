@@ -9,6 +9,10 @@ import { getOpenAI, getModel } from "@/utils/openai";
 import { recoverTruncatedJson } from "@/utils/json-recovery";
 import { simpleCache } from "@/utils/cache";
 import logger from "@/utils/logger";
+import experiencesRepository from "@/repositories/experiences.repository";
+import projectsRepository from "@/repositories/projects.repository";
+import certificationsRepository from "@/repositories/certifications.repository";
+import educationRepository from "@/repositories/educations.repository";
 
 const CV_EXTRACT_CACHE_TTL = 24 * 60 * 60 * 1000;
 const MAX_INPUT_CHARS = 12000;
@@ -216,7 +220,7 @@ export const CVService = {
     return CVRepository.remove(id);
   },
 
-  async extractData(fileUrl: string) {
+  async extractData(fileUrl: string, studentId: number) {
     const cacheKey = `cv_extract:${fileUrl}`;
     const cached = simpleCache.get<ExtractedCVData>(cacheKey);
     if (cached) {
@@ -255,6 +259,16 @@ export const CVService = {
     simpleCache.set(cacheKey, result, CV_EXTRACT_CACHE_TTL);
 
     logger.info(`[CV Extract] Confidence: ${confidence}%, Skills: ${result.skills.length}, Exp: ${result.experiences.length}, Edu: ${result.educations.length}, Projects: ${result.projects.length}`);
+
+
+    const deleteOldData = Promise.all([
+      experiencesRepository.bulkDelete(studentId),
+      projectsRepository.bulkDelete(studentId),
+      certificationsRepository.bulkDelete(studentId),
+      educationRepository.bulkDelete(studentId),
+    ])
+
+    await deleteOldData;
 
     return result;
   },

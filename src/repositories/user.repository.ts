@@ -88,6 +88,9 @@ export class UserRepository {
     const { data, error } = await this.db.from("users").insert([input.userData]).select(this.fields).single();
 
     if (error) {
+      if (error.code === '23505') {
+        throw new Error(`User with email ${input.userData.email} already exists`);
+      }
       throw new Error(`Failed to create user: ${error.message}`);
     }
 

@@ -70,6 +70,12 @@ export class ExperiencesRepository {
         if (error) throw error;
         return data;
     }
+
+    async bulkDelete(studentId: number) {
+        const { data, error } = await this.db.from("experiences").delete().eq("student_id", studentId).select("id");
+        if (error) throw error;
+        return data;
+    }
 }
 
 export default new ExperiencesRepository();
