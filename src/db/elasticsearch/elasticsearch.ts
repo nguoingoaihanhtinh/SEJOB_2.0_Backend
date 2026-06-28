@@ -76,5 +76,30 @@ export const ESJob = {
   delete: async (jobId: number) => {
     const response = await es.delete({ index: JOBS_INDEX, id: String(jobId) }, { ignore: [404] })
     return response
-  }
+  },
+  /** Completion Suggester — gợi ý keyword khi user gõ từng ký tự */
+  suggest: async (prefix: string, size: number = 8): Promise<string[]> => {
+    const response = await es.search({
+      index: JOBS_INDEX,
+      suggest: {
+        job_suggest: {
+          prefix,
+          completion: {
+            field: "suggest",
+            size,
+            skip_duplicates: true,
+            fuzzy: {
+              fuzziness: 1,         // cho phép sai 1 ký tự
+              min_length: 3,        // chỉ bật fuzzy khi prefix >= 3 ký tự
+              prefix_length: 1,     // 1 ký tự đầu phải đúng
+            },
+          },
+        },
+      },
+      _source: false,               // không cần lấy _source, chỉ cần options
+    } as any);
+
+    const options: string[] = (response as any).suggest?.job_suggest?.[0]?.options ?? [];
+    return options.map((opt: any) => opt.text as string);
+  },
 }

@@ -13,6 +13,7 @@ import { TOPCV_ID_TO_MY_PROVINCE_ID } from "@/utils/cityMapper";
 import { getTopCVTotal, getTopCVwithOffset } from "./topcv.handler";
 import { verifyToken } from "@/utils/jwt.util";
 import { MessageUtil } from "@/utils/MessageUtil";
+import { ESJob } from "@/db/elasticsearch/elasticsearch";
 
 // Helper: Parse job query params from request
 function parseJobQueryParams(query: any, includePagination = true) {
@@ -308,4 +309,18 @@ export async function similarJobRecommendation(req: Request, res: Response) {
     data: formattedJobs,
     pagination
   });
+}
+
+/** GET /api/jobs/suggest?q=devo&size=8 */
+export async function suggestJobs(req: Request, res: Response) {
+  const prefix = typeof req.query.q === "string" ? _.trim(req.query.q) : "";
+  const size = Math.min(_.toInteger(req.query.size) || 8, 20);
+
+  if (!prefix) {
+    return res.status(200).json({ success: true, data: [] });
+  }
+
+  const suggestions = await ESJob.suggest(prefix, size);
+
+  return res.status(200).json({ success: true, data: suggestions });
 }

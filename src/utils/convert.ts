@@ -18,6 +18,7 @@ const convert = {
     const categories = job.categories ?? [];
     const levels = job.levels ?? [];
     const branches = job.company_branches ?? [];
+    const employment_types = job.employment_types ?? [];
 
     return {
       id: job.id,
@@ -81,6 +82,13 @@ const convert = {
         name: l.name ?? "",
       })),
 
+      employment_types: employment_types.map((e) => ({
+        id: e.id ?? null,
+        name: e.name ?? "",
+      })),
+
+      job_posted_at: job.job_posted_at ?? null,
+
       // -------- FLATTEN (🔥 quan trọng) --------
       skill_ids: skills.map((s) => s.id).filter(Boolean),
       category_ids: categories.map((c) => c.id).filter(Boolean),
@@ -90,6 +98,22 @@ const convert = {
 
       // -------- SEARCH TEXT --------
       search_text: [job.title, job.company?.name, ...skills.map((s) => s.name)].filter(Boolean).join(" "),
+
+      // -------- COMPLETION SUGGEST --------
+      // Dùng cho ES Suggest API (autocomplete khi user gõ từng ký tự)
+      suggest: {
+        input: [
+          // Job title — weight cao nhất
+          ...(job.title ? [job.title] : []),
+          // Company name
+          ...(job.company?.name ? [job.company.name] : []),
+          // Skills
+          ...skills.map((s) => s.name).filter(Boolean),
+          // Categories
+          ...categories.map((c) => c.name).filter(Boolean),
+        ],
+        weight: 1,
+      },
     };
   },
 };

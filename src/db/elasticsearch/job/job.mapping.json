@@ -1,9 +1,26 @@
 {
   "settings": {
     "analysis": {
+      "filter": {
+        "autocomplete_filter": {
+          "type": "edge_ngram",
+          "min_gram": 1,
+          "max_gram": 20
+        }
+      },
       "analyzer": {
         "job_analyzer": {
           "type": "standard"
+        },
+        "autocomplete": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "autocomplete_filter"]
+        },
+        "autocomplete_search": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase"]
         }
       }
     }
@@ -15,8 +32,21 @@
         "type": "text",
         "analyzer": "job_analyzer",
         "fields": {
-          "keyword": { "type": "keyword" }
+          "keyword": { "type": "keyword" },
+          "autocomplete": {
+            "type": "text",
+            "analyzer": "autocomplete",
+            "search_analyzer": "autocomplete_search"
+          }
         }
+      },
+
+      "suggest": {
+        "type": "completion",
+        "analyzer": "standard",
+        "preserve_separators": true,
+        "preserve_position_increments": true,
+        "max_input_length": 50
       },
 
       "description": { "type": "text" },
@@ -93,7 +123,15 @@
           "id": { "type": "long" },
           "name": { "type": "keyword" }
         }
-      }
+      },
+      "employment_types": {
+        "type": "nested",
+        "properties": {
+          "id": { "type": "long" },
+          "name": { "type": "keyword" }
+        }
+      },
+      "job_posted_at": { "type": "date" }
     }
   }
 }

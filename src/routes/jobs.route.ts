@@ -10,6 +10,7 @@ import {
   listJobsByCompany,
   listMergedJobs,
   userRecommendationJobs,
+  suggestJobs,
 } from "@/handlers/jobs.handler";
 import { authenticate } from "@/middlewares/auth.middleware";
 import { authorizeRoles } from "@/middlewares/authorizeRoles";
@@ -19,6 +20,7 @@ const router = Router();
 // Public list and get
 router.get("/", listJobs);
 router.get("/merged", listMergedJobs);
+router.get("/suggest", suggestJobs);          // ⚡ autocomplete — phải trước /:id
 router.get("/:id", getJob);
 router.get("/company/:id", listJobsByCompany);
 // router.get("/recommendation", listJobsByCompany);

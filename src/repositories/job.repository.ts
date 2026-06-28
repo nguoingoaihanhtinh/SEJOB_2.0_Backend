@@ -6,11 +6,12 @@ import { UpdateJobDto } from "@/dtos/job/UpdateJob.dto";
 import { JobAfterJoined, JobQueryParams, SORTABLE_JOB_FIELDS } from "@/types/common";
 import { NotFoundError } from "@/utils/errors";
 import convert from "@/utils/convert";
+import { ESJob } from "@/db/elasticsearch/elasticsearch";
 
 export class JobRepository {
   private readonly db: SupabaseClient;
   public readonly fields =
-    "id, external_id, website_url, company, company_id, company_branches, company_branches_id, company_branches_ids, title, responsibilities, requirement, nice_to_haves, benefit, working_time, description, apply_guide, is_diamond, is_job_flash_active, is_hot, salary_from, salary_to, salary_text, salary_currency, job_posted_at, job_deadline, apply_reasons, status, created_at, updated_at, quantity, categories, skills, levels";
+    "id, external_id, website_url, company, company_id, company_branches, company_branches_id, company_branches_ids, title, responsibilities, requirement, nice_to_haves, benefit, working_time, description, apply_guide, is_diamond, is_job_flash_active, is_hot, salary_from, salary_to, salary_text, salary_currency, job_posted_at, job_deadline, apply_reasons, status, created_at, updated_at, quantity, categories, skills, levels, employment_types";
 
   constructor() {
     this.db = supabase;
@@ -74,6 +75,183 @@ export class JobRepository {
 
     return {
       data: rows as JobAfterJoined[],
+      pagination: hasPagination && {
+        page,
+        limit,
+        total,
+        total_pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async findAllES(input: JobQueryParams) {
+    const fields = _.get(input, "fields", this.fields);
+    const page = _.get(input, "page", 1);
+    const limit = _.get(input, "limit", 10);
+    const hasPagination = page > 0 && limit > 0;
+
+    const is_company_active = _.get(input, "is_company_active") || [true];
+
+    // ── Build Elasticsearch query ─────────────────────────────────────────
+    const mustClauses: any[] = [];
+    const filterClauses: any[] = [];
+
+    // Full-text search on title & description
+    if (input.keyword) {
+      mustClauses.push({
+        multi_match: {
+          query: input.keyword,
+          fields: ["title^3", "description"],
+          type: "best_fields",
+          fuzziness: "AUTO",
+        },
+      });
+    }
+
+    // company.id filter
+    if (input.company_id != null) {
+      filterClauses.push({ term: { "company.id": input.company_id } });
+    }
+
+    // company.is_active filter
+    if (is_company_active?.length) {
+      // Nếu chỉ có [true] thì lọc active, nếu có [false] thì bỏ qua filter này
+      if (!is_company_active.includes(false as any)) {
+        filterClauses.push({ term: { "company.is_active": true } });
+      }
+    }
+
+    // statuses filter
+    const statuses = convert.normalizeArray(input.statuses);
+    if (statuses?.length) {
+      filterClauses.push({ terms: { status: statuses } });
+    }
+
+    // salary range filter
+    if (input.salary_from != null || input.salary_to != null) {
+      const salaryRange: any = {};
+      if (input.salary_from != null) salaryRange.gte = input.salary_from;
+      if (input.salary_to != null) salaryRange.lte = input.salary_to;
+      filterClauses.push({ range: { salary_from: salaryRange } });
+    }
+
+    // nested: province_ids (via company_branches.province.id)
+    const province_ids = convert.normalizeArray(input.province_ids);
+    if (province_ids?.length) {
+      filterClauses.push({
+        nested: {
+          path: "company_branches",
+          query: { terms: { "company_branches.province.id": province_ids } },
+        },
+      });
+    }
+
+    // nested: skill_ids
+    const skill_ids = convert.normalizeArray(input.skill_ids);
+    if (skill_ids?.length) {
+      filterClauses.push({
+        nested: {
+          path: "skills",
+          query: { terms: { "skills.id": skill_ids } },
+        },
+      });
+    }
+
+    // nested: category_ids
+    const category_ids = convert.normalizeArray(input.category_ids);
+    if (category_ids?.length) {
+      filterClauses.push({
+        nested: {
+          path: "categories",
+          query: { terms: { "categories.id": category_ids } },
+        },
+      });
+    }
+
+    // nested: level_ids
+    const level_ids = convert.normalizeArray(input.level_ids);
+    if (level_ids?.length) {
+      filterClauses.push({
+        nested: {
+          path: "levels",
+          query: { terms: { "levels.id": level_ids } },
+        },
+      });
+    }
+
+    // job_ids whitelist
+    const job_ids = convert.normalizeArray(input.job_ids);
+    if (job_ids?.length) {
+      filterClauses.push({ terms: { id: job_ids } });
+    }
+
+    // employment_type_ids
+    const employment_type_ids = convert.normalizeArray(input.employment_type_ids);
+    if (employment_type_ids?.length) {
+      filterClauses.push({
+        nested: {
+          path: "employment_types",
+          query: { terms: { "employment_types.id": employment_type_ids } },
+        },
+      });
+    }
+
+    const esQuery: any = {
+      bool: {
+        ...(mustClauses.length ? { must: mustClauses } : { must: [{ match_all: {} }] }),
+        ...(filterClauses.length ? { filter: filterClauses } : {}),
+      },
+    };
+
+    // ── Sort ─────────────────────────────────────────────────────────────
+    const sortBy = _.get(input, "sort_by", "job_posted_at");
+    const sortDir = _.get(input, "order", "desc");
+
+    const esSort: any[] = input.keyword
+      ? [{ _score: { order: "desc" } }, { [sortBy]: { order: sortDir } }]
+      : [{ [sortBy]: { order: sortDir } }];
+
+    // ── Execute ES search ─────────────────────────────────────────────────
+    const esResponse = await ESJob.search({
+      query: esQuery,
+      sort: esSort,
+      from: hasPagination ? (page - 1) * limit : 0,
+      size: hasPagination ? limit : 10,
+      track_total_hits: true,
+    });
+
+    const hits = esResponse.hits?.hits ?? [];
+    const total =
+      typeof esResponse.hits?.total === "object"
+        ? esResponse.hits.total.value
+        : (esResponse.hits?.total ?? 0);
+
+    // Extract IDs in ES relevance order
+    const esIds: number[] = hits.map((h: any) => Number(h._id));
+
+    if (!esIds.length) {
+      return {
+        data: [] as JobAfterJoined[],
+        pagination: hasPagination && { page, limit, total: 0, total_pages: 0 },
+      };
+    }
+
+    // ── Fetch full records from Supabase via findAll ──────────────────────
+    const { data: rawRows } = await this.findAll({
+      fields,
+      job_ids: esIds,
+      page: 1,
+      limit: esIds.length,
+    });
+
+    // Re-order theo thứ tự ES relevance
+    const rowMap = new Map<number, JobAfterJoined>(
+      rawRows.map((row) => [row.id, row])
+    );
+    const rows = esIds.map((id) => rowMap.get(id)).filter(Boolean) as JobAfterJoined[];
+
+    return {
+      data: rows,
       pagination: hasPagination && {
         page,
         limit,

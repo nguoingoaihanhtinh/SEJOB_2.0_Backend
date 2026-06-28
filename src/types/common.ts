@@ -88,6 +88,7 @@ export type JobAfterJoined = Job & {
   skills: Skill[];
   categories: Category[];
   company_branches: CompanyBranches[];
+  employment_types: EmploymentType[];
 };
 export type JobInsert = Database["public"]["Tables"]["jobs"]["Insert"];
 export type JobUpdate = Database["public"]["Tables"]["jobs"]["Update"];

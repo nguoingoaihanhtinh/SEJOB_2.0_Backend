@@ -26,7 +26,7 @@ export class JobService {
   }
 
   async list(input: JobQueryParams & { current_user_id?: number }) {
-    const { data: jobs, pagination } = await jobRepository.findAll(input);
+    const { data: jobs, pagination } = await jobRepository.findAllES(input);
 
     if (input.current_user_id) {
       const jobIds = jobs.map((job) => job.id).filter((id): id is number => typeof id === "number");
