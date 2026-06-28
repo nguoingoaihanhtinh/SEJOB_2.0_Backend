@@ -49,3 +49,32 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     next(error);
   }
 };
+
+export const extractUser = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    let token: string | undefined;
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+
+    if (!token) {
+      token = req.cookies?.access_token;
+    }
+
+    if (!token) {
+      throw new UnauthorizedError({
+        message: MessageUtil.get("NO_TOKEN_PROVIDED"),
+        status: "NO_TOKEN",
+      });
+    }
+    const decoded = verifyToken(token);
+
+    req.user = decoded;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+

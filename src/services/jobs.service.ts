@@ -645,6 +645,17 @@ export class JobService {
 
     const result_jobs = await jobRepository.findAll({ job_ids: jobIds, page, limit, is_company_active: [true, false] });
 
+    if (userId) {
+      const jobIds = result_jobs.data.map((job) => job.id).filter((id): id is number => typeof id === "number");
+      const saved = jobIds.length ? await savedJobsRepo.findByUserAndJobIds(userId, jobIds) : [];
+      const savedSet = new Set(saved.map((item) => item.job_id));
+
+      result_jobs.data = result_jobs.data.map((job) => ({
+        ...job,
+        isSaved: savedSet.has(job.id as number),
+      }));
+    }
+  
     const jobIndexMap = new Map<number, number>(jobIds.map((id: number, index: number) => [id, index]));
     const scoreMap = new Map<number, number>(result.hits.hits.map((hit: any) => [hit._source.id, hit._score]));
 
@@ -662,7 +673,7 @@ export class JobService {
     return { data: sortedJobs, pagination: result_jobs.pagination };
   }
 
-  async similarJobRecommendation({ jobId, page = 1, limit = 10 }: { jobId: number, page: number, limit: number }) {
+  async similarJobRecommendation({ jobId, userId, page = 1, limit = 10 }: { jobId: number, userId: number | undefined, page: number, limit: number }) {
     const { job } = await jobRepository.findOne(jobId);
 
     const jobSkill = (_.get(job, 'skills') || []).map((skill : any) => skill.name) || [];
@@ -747,6 +758,17 @@ export class JobService {
     const jobIds = result.hits.hits.map((hit: any) => hit._source.id);
 
     const result_jobs = await jobRepository.findAll({ job_ids: jobIds, page, limit });
+
+    if (userId) {
+      const jobIds = result_jobs.data.map((job) => job.id).filter((id): id is number => typeof id === "number");
+      const saved = jobIds.length ? await savedJobsRepo.findByUserAndJobIds(userId, jobIds) : [];
+      const savedSet = new Set(saved.map((item) => item.job_id));
+
+      result_jobs.data = result_jobs.data.map((job) => ({
+        ...job,
+        isSaved: savedSet.has(job.id as number),
+      }));
+    }
 
     const jobIndexMap = new Map<number, number>(jobIds.map((id: number, index: number) => [id, index]));
     const scoreMap = new Map<number, number>(result.hits.hits.map((hit: any) => [hit._source.id, hit._score]));

@@ -12,20 +12,20 @@ import {
   userRecommendationJobs,
   suggestJobs,
 } from "@/handlers/jobs.handler";
-import { authenticate } from "@/middlewares/auth.middleware";
+import { authenticate, extractUser } from "@/middlewares/auth.middleware";
 import { authorizeRoles } from "@/middlewares/authorizeRoles";
 
 const router = Router();
 
 // Public list and get
-router.get("/", listJobs);
+router.get("/", extractUser, listJobs);
 router.get("/merged", listMergedJobs);
 router.get("/suggest", suggestJobs);          // ⚡ autocomplete — phải trước /:id
 router.get("/:id", getJob);
 router.get("/company/:id", listJobsByCompany);
 // router.get("/recommendation", listJobsByCompany);
 router.get("/recommendation/me", authenticate, authorizeRoles("Student"), userRecommendationJobs);
-router.get("/recommendation/:id/similar", similarJobRecommendation);
+router.get("/recommendation/:id/similar", extractUser, similarJobRecommendation);
 
 // Protected CRUD
 router.post("/", authenticate, authorizeRoles("Admin", "Manager", "Employer"), createJob);

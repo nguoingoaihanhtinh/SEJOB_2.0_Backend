@@ -299,8 +299,9 @@ export async function userRecommendationJobs(req: Request, res: Response) {
 
 export async function similarJobRecommendation(req: Request, res: Response) {
   const id = Number(req.params.id);
+  const userId = req?.user?.userId;
 
-  const { data: jobs, pagination } = await jobService.similarJobRecommendation({ jobId: id, page: 1, limit: 10 });
+  const { data: jobs, pagination } = await jobService.similarJobRecommendation({ jobId: id, userId, page: 1, limit: 10 });
   
   const formattedJobs = jobs.map((job) => toTopCvFormat(job, job.company, null));
 
