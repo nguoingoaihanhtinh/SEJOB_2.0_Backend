@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const jwtExpiresInMs = process.env.JWT_EXPIRES_IN ? parseInt(process.env.JWT_EXPIRES_IN, 10) : 3600000;
+const jwtExpiresInMs = process.env.JWT_EXPIRES_IN ? parseInt(process.env.JWT_EXPIRES_IN, 10) : 10800000;
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || "development",

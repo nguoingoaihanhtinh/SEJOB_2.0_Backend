@@ -147,21 +147,25 @@ export function classifyMajor(combined: string): MajorType {
 }
 
 /**
- * Tier × Major scoring matrix (% of maxScore)
+ * S:  Chuyên IT   — UIT, UET, PTIT, FPT, HUST, HCMUT, DUT, HCMUS, HUS, ACT, MTA, USTH
+ * A:  Mạnh CNTT   — HCMUTE, IUH, HaUI, TDTU, DTU, UD, HCMIU, CTU, UTC, UTEHY, TNU, ICTU
+ * B:  Tư thục     — HUTECH, VLU, NTTU, GDU, SGU, UNETI, TLU, Phenikaa, VinUni, RMIT
+ * C:  Địa phương  — QNU, VU, HU, HUSC, NTU, AGU, TVU, TGU, LHU, BVU
+ * NONE: Không rõ  — không có trong danh sách
  *
- *             IT major  Related  Unrelated  Unknown
- * Tier S      100%      80%      40%        50%
- * Tier A      90%       70%      30%        35%
- * Tier B      75%       55%      15%        20%
- * Tier C      65%       40%       0%        10%
- * No school   80%       50%       0%        10%
+ *              IT    Related  Unrelated  Unknown
+ * Tier S      100%   80%      40%        40%
+ * Tier A      80%    70%      30%        30%
+ * Tier B      70%    55%      15%         0%
+ * Tier C      60%    40%       0%         0%
+ * No school   60%    40%       0%         0%
  */
 const MATRIX: Record<SchoolTier | "NONE", Record<MajorType, number>> = {
-  S: { it: 1.0, related: 0.8, unrelated: 0.4, unknown: 0.5 },
-  A: { it: 0.8, related: 0.7, unrelated: 0.3, unknown: 0.35 },
-  B: { it: 0.7, related: 0.55, unrelated: 0.15, unknown: 0.2 },
-  C: { it: 0.6, related: 0.4, unrelated: 0.0, unknown: 0.1 },
-  NONE: { it: 0.6, related: 0.5, unrelated: 0.0, unknown: 0.1 },
+  S: { it: 1.0, related: 0.8, unrelated: 0.4, unknown: 0.4 },
+  A: { it: 0.8, related: 0.7, unrelated: 0.3, unknown: 0.3 },
+  B: { it: 0.7, related: 0.55, unrelated: 0.15, unknown: 0.0 },
+  C: { it: 0.6, related: 0.4, unrelated: 0.0, unknown: 0.0 },
+  NONE: { it: 0.6, related: 0.4, unrelated: 0.0, unknown: 0.0 },
 };
 
 export function getScoreMultiplier(tier: SchoolTier | null, majorType: MajorType): number {

@@ -343,7 +343,7 @@ export class CvScoringService {
    * - Freelance IT → 60%
    * - Non-IT → 0% (no penalty for no experience)
    */
-  private scoreExperience(experiences: any[], maxScore: number): { score: number; details: string } {
+  private scoreExperience(experiences: any[], maxScore: number, commonSkills: { id: number; name: string }[]): { score: number; details: string } {
     if (!experiences || experiences.length === 0) {
       return { score: 0, details: "No work experience" };
     }
@@ -408,6 +408,48 @@ export class CvScoringService {
 
       bestScore = Math.max(bestScore, typeScore);
       experienceDetails.push(`${exp.position} at ${exp.company}: ${expType} (${typeScore})`);
+    }
+
+    // Apply description quality multiplier to the best match
+    if (bestScore > 0) {
+      // Try to find the experience that gave the bestScore to evaluate its description
+      let maxQualPct = 0;
+      for (const exp of experiences) {
+        const expText = `${exp.position} ${exp.company} ${exp.description || ""}`.toLowerCase();
+        const isITRelated = itKeywords.some((kw) => expText.includes(kw.toLowerCase()));
+        if (!isITRelated) continue;
+
+        const description = (exp.description || "").trim().toLowerCase();
+        const descLen = description.length;
+
+        let qualPct = 1.0;
+        if (descLen < 20) qualPct = 0.4;
+        else if (descLen < 60) qualPct = 0.6;
+        else if (descLen < 150) qualPct = 0.8;
+
+        // Bonus: contains specific tech keywords from common_skills DB
+        const hasTech = commonSkills.some((s) => description.includes(s.name.toLowerCase()));
+        if (hasTech) qualPct = Math.min(qualPct + 0.1, 1.0);
+
+        // Bonus: contains actionable verbs
+        const actionVerbs = [
+          "develop", "build", "implement", "design", "deploy",
+          "lead", "manage", "create", "maintain", "optimize",
+          "improve", "architect", "configure", "integrate",
+          "refactor", "migrate", "automate", "monitor",
+          "troubleshoot", "collaborate", "deliver",
+        ];
+        const hasActions = actionVerbs.some((v) => description.includes(v));
+        if (hasActions) qualPct = Math.min(qualPct + 0.05, 1.0);
+
+        maxQualPct = Math.max(maxQualPct, qualPct);
+      }
+
+      const newScore = Math.round(bestScore * maxQualPct);
+      if (newScore !== bestScore) {
+        experienceDetails.push(`description quality: ${Math.round(maxQualPct * 100)}% → score ${bestScore} → ${newScore}`);
+      }
+      bestScore = newScore;
     }
 
     return { score: bestScore, details: experienceDetails.join("; ") || "No IT-related experience" };
@@ -1400,7 +1442,7 @@ export class CvScoringService {
     );
 
     // E. Experience
-    const eResult = this.scoreExperience(experiences, weights.E_EXPERIENCE);
+    const eResult = this.scoreExperience(experiences, weights.E_EXPERIENCE, commonSkills);
     const eScore = clamp(eResult.score, weights.E_EXPERIENCE);
 
     // --- 9. Final Score ---
