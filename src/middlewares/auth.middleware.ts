@@ -63,15 +63,11 @@ export const extractUser = async (req: Request, res: Response, next: NextFunctio
       token = req.cookies?.access_token;
     }
 
-    if (!token) {
-      throw new UnauthorizedError({
-        message: MessageUtil.get("NO_TOKEN_PROVIDED"),
-        status: "NO_TOKEN",
-      });
+    if (token) {
+      const decoded = verifyToken(token);
+      req.user = decoded;
     }
-    const decoded = verifyToken(token);
 
-    req.user = decoded;
     next();
   } catch (error) {
     next(error);

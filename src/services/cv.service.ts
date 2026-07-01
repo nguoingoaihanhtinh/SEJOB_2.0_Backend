@@ -69,6 +69,7 @@ const extractedCvSchema = z.object({
   educations: z.array(educationSchema).default([]),
   projects: z.array(projectSchema).default([]),
   certifications: z.array(certificationSchema).default([]),
+  advises: z.array(z.string()).default([]),
 });
 
 type ExtractedCVData = z.infer<typeof extractedCvSchema>;
@@ -132,7 +133,8 @@ Schema:
   "experiences": [{"company":string,"position":string,"location":string|null,"start_date":"YYYY-MM-DD"|null,"end_date":"YYYY-MM-DD"|null,"is_current":bool,"description":string|null}],
   "educations": [{"school":string,"degree":string|null,"major":string|null,"start_date":"YYYY-MM-DD"|null,"end_date":"YYYY-MM-DD"|null}],
   "projects": [{"projectName":string,"description":string|null,"startYear":number|null,"startMonth":number|null,"endYear":number|null,"endMonth":number|null,"isCurrentlyWorking":bool,"websiteLink":string|null}],
-  "certifications": [{"name":string,"organization":string|null,"issue_date":"YYYY-MM-DD"|null,"certification_url":string|null}]
+  "certifications": [{"name":string,"organization":string|null,"issue_date":"YYYY-MM-DD"|null,"certification_url":string|null}],
+  "advises": string[]
 }
 Rules:
 - null for missing scalars, [] for missing arrays, "" for missing strings
@@ -140,6 +142,7 @@ Rules:
 - is_current=true ONLY if "Present"/"Current" mentioned
 - Extract ALL skills (technical, tools, languages) and ALL projects
 - Phone number as written; gender only if explicit
+- Give advises about what to improve in the CV based on the extracted data
 
 CV:
 ${text}
@@ -221,10 +224,19 @@ export const CVService = {
   },
 
   async extractData(fileUrl: string, studentId: number) {
+    const deleteOldData = Promise.all([
+      experiencesRepository.bulkDelete(studentId),
+      projectsRepository.bulkDelete(studentId),
+      certificationsRepository.bulkDelete(studentId),
+      educationRepository.bulkDelete(studentId),
+    ])
+
     const cacheKey = `cv_extract:${fileUrl}`;
     const cached = simpleCache.get<ExtractedCVData>(cacheKey);
     if (cached) {
       logger.info(`[CV Extract] Cache hit for ${fileUrl}`);
+      await deleteOldData;
+
       return cached;
     }
 
@@ -259,14 +271,6 @@ export const CVService = {
     simpleCache.set(cacheKey, result, CV_EXTRACT_CACHE_TTL);
 
     logger.info(`[CV Extract] Confidence: ${confidence}%, Skills: ${result.skills.length}, Exp: ${result.experiences.length}, Edu: ${result.educations.length}, Projects: ${result.projects.length}`);
-
-
-    const deleteOldData = Promise.all([
-      experiencesRepository.bulkDelete(studentId),
-      projectsRepository.bulkDelete(studentId),
-      certificationsRepository.bulkDelete(studentId),
-      educationRepository.bulkDelete(studentId),
-    ])
 
     await deleteOldData;
 
